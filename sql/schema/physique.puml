@@ -1,158 +1,190 @@
-@startuml PHYSIQUE_Unitee
+@startuml MPD_Unitee
 !theme plain
+skinparam linetype ortho
 
-title PHYSIQUE - UNITEE MySQL 8.0 Physical Schema
+title MPD - UNITEE Schéma Physique MySQL 8.0
+
+' ============================================================
+' TABLES DE RÉFÉRENCE
+' ============================================================
 
 entity sources {
-  *id_source : INT PK
+  *id_source : INT PK AUTO_INCREMENT
   --
-  source_name : VARCHAR(100) UNIQUE
+  nom_source : VARCHAR(100) UNIQUE NOT NULL
   description : TEXT
   url_base : VARCHAR(500)
-  type_source : ENUM
-  active : BOOLEAN
-  created_at : DATETIME
+  type_source : ENUM('API','SCRAPING','FLUX_RSS') DEFAULT 'API'
+  actif : BOOLEAN DEFAULT TRUE
+  date_creation : DATETIME DEFAULT CURRENT_TIMESTAMP
 }
 
-entity buyers {
-  *id_buyer : INT PK
+entity acheteurs {
+  *id_acheteur : INT PK AUTO_INCREMENT
   --
-  buyer_name : VARCHAR(255) UNIQUE
-  buyer_type : ENUM
+  nom_acheteur : VARCHAR(255) UNIQUE NOT NULL
+  type_acheteur : ENUM('COLLECTIVITE','ETAT','ENTREPRISE_PUBLIQUE')
   region : VARCHAR(100)
   contact_email : VARCHAR(255)
   contact_phone : VARCHAR(20)
-  created_at : DATETIME
+  date_creation : DATETIME DEFAULT CURRENT_TIMESTAMP
 }
 
-entity keywords {
-  *id_keyword : INT PK
+entity mots_cles {
+  *id_mot_cle : INT PK AUTO_INCREMENT
   --
-  keyword_text : VARCHAR(100) UNIQUE
-  category : ENUM
-  relevance_score : INT
-  created_at : DATETIME
+  mot_cle : VARCHAR(100) UNIQUE NOT NULL
+  categorie : ENUM('PRIMARY','SECONDARY','EXTRACTED') DEFAULT 'EXTRACTED'
+  pertinence : INT DEFAULT 50
+    CHECK (pertinence BETWEEN 0 AND 100)
+  date_creation : DATETIME DEFAULT CURRENT_TIMESTAMP
 }
 
-entity announcements {
-  *id_announcement : BIGINT PK
-  #id_source : INT FK
-  #id_buyer : INT FK
+' ============================================================
+' TABLE MÉTIER PRINCIPALE
+' ============================================================
+
+entity annonces {
+  *id_annonce : BIGINT PK AUTO_INCREMENT
+  #id_source : INT FK NOT NULL
+  #id_acheteur : INT FK NOT NULL
   --
-  external_id : VARCHAR(100)
-  title : VARCHAR(500)
+  id_externe : VARCHAR(100) NOT NULL
+  titre : VARCHAR(500) NOT NULL
+    CHECK (CHAR_LENGTH(titre) > 5)
+  resume : TEXT
   description : LONGTEXT
-  estimated_amount : DECIMAL(15,2)
-  currency : VARCHAR(3)
-  publication_date : DATETIME
-  response_deadline : DATETIME
-  location : VARCHAR(255)
+  montant_estime : DECIMAL(15,2)
+    CHECK (montant_estime >= 0)
+  devise : VARCHAR(3) DEFAULT 'EUR'
+  date_publication : DATETIME NOT NULL
+  date_limite_reponse : DATETIME NOT NULL
+    CHECK (date_publication <= date_limite_reponse)
+  localisation : VARCHAR(255)
   region : VARCHAR(100)
-  source_link : TEXT UNIQUE
-  status : ENUM
-  imported_at : DATETIME
-  updated_at : DATETIME
+  lien_source : TEXT
+  statut : ENUM('NOUVEAU','QUALIFIE','IGNORE','REPONDU') DEFAULT 'NOUVEAU'
+  timestamp_import : DATETIME DEFAULT CURRENT_TIMESTAMP
+  timestamp_maj : DATETIME ON UPDATE CURRENT_TIMESTAMP
+  -- UNIQUE KEY uk_doublon (id_source, id_externe)
 }
 
-entity announcement_keywords {
-  *id_announcement : BIGINT PK
-  *id_keyword : INT PK
+' Table de liaison N:N
+entity annonce_mot_cle {
+  *id_annonce : BIGINT PK FK (CASCADE DELETE)
+  *id_mot_cle : INT PK FK (RESTRICT DELETE)
   --
-  relevance_score : INT
-  extraction_type : ENUM
-  extracted_at : DATETIME
+  score_pertinence : INT DEFAULT 50
+    CHECK (score_pertinence BETWEEN 0 AND 100)
+  type_extraction : ENUM('REGEX','TF-IDF','MANUEL','LLM') DEFAULT 'REGEX'
+  date_extraction : DATETIME DEFAULT CURRENT_TIMESTAMP
 }
 
-entity qualification_scores {
-  *id_score : INT PK
-  #id_announcement : BIGINT UNIQUE FK
+' ============================================================
+' TABLES DE QUALIFICATION
+' ============================================================
+
+entity scores_pertinence {
+  *id_score : INT PK AUTO_INCREMENT
+  #id_annonce : BIGINT UNIQUE FK (CASCADE DELETE)
   --
-  pertinence_score : INT
-  alert_level : ENUM
-  scoring_reason : TEXT
-  keyword_bonus : INT
-  amount_bonus : INT
-  deadline_bonus : INT
-  buyer_bonus : INT
-  calculated_at : DATETIME
-  updated_at : DATETIME
+  score_pertinence : INT NOT NULL
+    CHECK (score_pertinence BETWEEN 0 AND 100)
+  niveau_alerte : ENUM('CRITIQUE','URGENT','NORMAL','IGNORE') DEFAULT 'NORMAL'
+  raison_scoring : TEXT
+  bonus_keywords : INT DEFAULT 0
+  bonus_montant : INT DEFAULT 0
+  bonus_deadline : INT DEFAULT 0
+  bonus_acheteur : INT DEFAULT 0
+  date_calcul : DATETIME DEFAULT CURRENT_TIMESTAMP
+  date_maj : DATETIME ON UPDATE CURRENT_TIMESTAMP
 }
 
 entity notifications {
-  *id_notification : BIGINT PK
-  #id_announcement : BIGINT FK
+  *id_notification : BIGINT PK AUTO_INCREMENT
+  #id_annonce : BIGINT FK (CASCADE DELETE)
   --
-  alert_type : VARCHAR(50)
-  status : ENUM
-  priority : INT
-  created_at : DATETIME
-  sent_at : DATETIME
-  acknowledged_at : DATETIME
+  type_alerte : VARCHAR(50) NOT NULL
+  statut : ENUM('NOUVEAU','ENVOYE','ACQUITTE','ARCHIVE') DEFAULT 'NOUVEAU'
+  priorite : INT DEFAULT 3
+    CHECK (priorite BETWEEN 1 AND 5)
   message : LONGTEXT
+  date_creation : DATETIME DEFAULT CURRENT_TIMESTAMP
+  date_envoi : DATETIME
+  date_acquittement : DATETIME
 }
 
-entity technical_logs {
-  *id_log : BIGINT PK
+' ============================================================
+' TABLES TECHNIQUES
+' ============================================================
+
+entity log_technique {
+  *id_log_tech : BIGINT PK AUTO_INCREMENT
   --
-  timestamp : DATETIME
-  operation_type : VARCHAR(100)
-  operation_source : VARCHAR(100)
-  status : ENUM
+  timestamp : DATETIME DEFAULT CURRENT_TIMESTAMP
+  type_operation : VARCHAR(100)
+  source_operation : VARCHAR(100)
+  statut : ENUM('OK','WARNING','ERREUR')
   message : TEXT
   details_json : JSON
-  duration_ms : INT
+  duree_ms : INT
 }
 
-entity business_logs {
-  *id_log : BIGINT PK
-  #id_announcement : BIGINT FK
+entity log_metier {
+  *id_log_metier : BIGINT PK AUTO_INCREMENT
+  #id_annonce : BIGINT FK (CASCADE DELETE)
   --
-  timestamp : DATETIME
-  operation_type : VARCHAR(100)
-  user : VARCHAR(255)
+  timestamp : DATETIME DEFAULT CURRENT_TIMESTAMP
+  type_operation : VARCHAR(100)
+  utilisateur : VARCHAR(255)
   description : TEXT
-  before_state : JSON
-  after_state : JSON
+  avant_etat : JSON
+  apres_etat : JSON
 }
 
-entity announcement_history {
-  *id_history : BIGINT PK
-  #id_announcement : BIGINT FK
+entity historique_annonces {
+  *id_historique : BIGINT PK AUTO_INCREMENT
+  #id_annonce : BIGINT FK (CASCADE DELETE)
   --
-  timestamp : DATETIME
-  modification_type : VARCHAR(100)
-  modified_column : VARCHAR(100)
-  old_value : TEXT
-  new_value : TEXT
+  timestamp : DATETIME DEFAULT CURRENT_TIMESTAMP
+  type_modification : VARCHAR(100)
+  colonne_modifiee : VARCHAR(100)
+  valeur_ancienne : TEXT
+  valeur_nouvelle : TEXT
 }
 
-entity backup_logs {
-  *id_backup : INT PK
+entity log_sauvegardes {
+  *id_log_sauvegarde : INT PK AUTO_INCREMENT
   --
-  timestamp : DATETIME
-  backup_type : ENUM
-  backup_file : VARCHAR(500)
-  status : ENUM
-  file_size : BIGINT
-  duration_seconds : INT
-  error_message : TEXT
+  timestamp : DATETIME DEFAULT CURRENT_TIMESTAMP
+  type_sauvegarde : ENUM('COMPLETE','INCREMENTALE')
+  fichier : VARCHAR(500)
+  statut : ENUM('OK','ERREUR')
+  taille_fichier : BIGINT
+  duree_secondes : INT
+  message_erreur : TEXT
 }
 
-sources ||--o{ announcements
-buyers ||--o{ announcements
-announcements }o--|| announcement_keywords
-keywords ||--o{ announcement_keywords
-announcements ||--|| qualification_scores
-announcements ||--o{ notifications
-announcements ||--o{ business_logs
-announcements ||--o{ announcement_history
+' ============================================================
+' RELATIONS
+' ============================================================
+
+sources ||--o{ annonces : "id_source (RESTRICT)"
+acheteurs ||--o{ annonces : "id_acheteur (RESTRICT)"
+
+annonces ||--o{ annonce_mot_cle : "id_annonce (CASCADE)"
+mots_cles ||--o{ annonce_mot_cle : "id_mot_cle (RESTRICT)"
+
+annonces ||--|| scores_pertinence : "id_annonce 1:1 (CASCADE)"
+annonces ||--o{ notifications : "id_annonce (CASCADE)"
+annonces ||--o{ log_metier : "id_annonce (CASCADE)"
+annonces ||--o{ historique_annonces : "id_annonce (CASCADE)"
 
 note bottom
-  Legend:
-  * = Primary Key
-  # = Foreign Key
-  RESTRICT = FK delete policy
-  CASCADE = Auto-delete related
+  Moteur : InnoDB | Encodage : utf8mb4_unicode_ci
+  RESTRICT = empêche suppression si enfants liés
+  CASCADE = propage suppression aux enfants
+  ON UPDATE CURRENT_TIMESTAMP = mise à jour auto
 end note
 
 @enduml

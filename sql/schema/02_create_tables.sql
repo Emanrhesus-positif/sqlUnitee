@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS annonces (
   lien_source TEXT UNIQUE COMMENT 'URL source (1 lien = 1 annonce max)',
   
   -- Métadonnées
-  statut ENUM('NEW','QUALIFIED','IGNORED','RESPONDED') DEFAULT 'NEW' COMMENT 'Statut traitement',
+  statut ENUM('NOUVEAU','QUALIFIE','IGNORE','REPONDU') DEFAULT 'NOUVEAU' COMMENT 'Statut traitement',
   timestamp_import DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Audit : date import',
   timestamp_maj DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Audit : dernière modification',
   
@@ -235,7 +235,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   
   -- Alerte
   type_alerte VARCHAR(50) NOT NULL COMMENT 'Type (NEW_OPPORTUNITY, DEADLINE_CRITICAL, etc)',
-  statut ENUM('NEW','SENT','ACKNOWLEDGED','ARCHIVED') DEFAULT 'NEW' COMMENT 'Pipeline : NEW->SENT->ACKNOWLEDGED->ARCHIVED',
+  statut ENUM('NOUVEAU','ENVOYE','ACQUITTE','ARCHIVE') DEFAULT 'NOUVEAU' COMMENT 'Pipeline : NOUVEAU->ENVOYE->ACQUITTE->ARCHIVE',
   priorite INT DEFAULT 3 CHECK (priorite >= 1 AND priorite <= 5) COMMENT '1=urgent, 5=basse (pour tri queue)',
   
   -- Timeline

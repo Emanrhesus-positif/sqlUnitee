@@ -126,7 +126,7 @@ VALUES
   ('Conseil Régional Normandie', 'COLLECTIVITE', 'Normandie', 'contact@normandie.fr', NOW()),
   
   -- Bretagne
-  ('Ville de Nantes', 'COLLECTIVITE', 'Bretagne', 'contact@nantes.fr', NOW()),
+  ('Ville de Rennes', 'COLLECTIVITE', 'Bretagne', 'contact@rennes.fr', NOW()),
   ('Conseil Régional Bretagne', 'COLLECTIVITE', 'Bretagne', 'contact@bretagne.fr', NOW()),
   
   -- Grand Est

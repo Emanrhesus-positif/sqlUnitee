@@ -93,8 +93,8 @@ CREATE INDEX idx_annonces_date_limite_reponse ON annonces (date_limite_reponse);
 -- ⚠️ IMPORTANT pour dashboards régionaux
 CREATE INDEX idx_annonces_region ON annonces (region);
 
--- Index sur statut (pour filtrer NEW vs QUALIFIED vs IGNORED vs RESPONDED)
--- Utilisé pour : "annonces non traitées (NEW)"
+-- Index sur statut (pour filtrer NOUVEAU vs QUALIFIE vs IGNORE vs REPONDU)
+-- Utilisé pour : "annonces non traitées (NOUVEAU)"
 CREATE INDEX idx_annonces_statut ON annonces (statut);
 
 -- Index sur montant_estime (pour recherches montant > X)
@@ -111,7 +111,7 @@ CREATE INDEX idx_annonces_region_deadline ON annonces (region, date_limite_repon
 CREATE INDEX idx_annonces_montant_deadline ON annonces (montant_estime DESC, date_limite_reponse);
 
 -- Index composite : statut + date_limite (annonces non traitées urgentes)
--- Utilisé pour : "annonces NEW/QUALIFIED avec deadline < 14j"
+-- Utilisé pour : "annonces NOUVEAU/QUALIFIE avec deadline < 14j"
 CREATE INDEX idx_annonces_statut_deadline ON annonces (statut, date_limite_reponse);
 
 -- Index sur timestamp_import (pour recherche par date import)
@@ -165,7 +165,7 @@ CREATE INDEX idx_qs_alerte_score ON qualification_scores (niveau_alerte, score_p
 -- ============================================================================
 
 -- Index sur statut (pour filtrer alertes à envoyer)
--- Utilisé pour : "notifications NEW à envoyer"
+-- Utilisé pour : "notifications NOUVEAU à envoyer"
 CREATE INDEX idx_notif_statut ON notifications (statut);
 
 -- Index sur priorite (pour tri par urgence)
@@ -177,7 +177,7 @@ CREATE INDEX idx_notif_priorite ON notifications (priorite);
 CREATE INDEX idx_notif_date_creation ON notifications (date_creation);
 
 -- Index composite : statut + priorite (notifications urgentes à envoyer)
--- Utilisé pour : "notifications NEW triées par priorite (maxurant en first)"
+-- Utilisé pour : "notifications NOUVEAU triées par priorite (urgent en first)"
 CREATE INDEX idx_notif_statut_priorite ON notifications (statut, priorite);
 
 -- ============================================================================

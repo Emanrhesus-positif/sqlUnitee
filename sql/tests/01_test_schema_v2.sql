@@ -1,241 +1,262 @@
 -- ============================================================================
--- UNITEE - COMPREHENSIVE SCHEMA TESTS (V2)
--- Date: 2026-04-08
--- Version: 2.0
--- 
--- This script validates the complete schema setup
+-- UNITEE - TESTS DU SCHÉMA COMPLET
+-- Fichier : 01_test_schema.sql
+-- Objet   : Valider la création des 11 tables, les données initiales,
+--            les contraintes et les relations
+--
+-- Noms de tables conformes à 02_create_tables.sql :
+--   sources, acheteurs, mots_cles, annonces, annonce_mot_cle,
+--   qualification_scores, notifications, log_technique,
+--   log_metier, historique_annonces, log_sauvegardes
 -- ============================================================================
 
 USE unitee;
 
 -- ============================================================================
--- TEST 1: VERIFY ALL 11 TABLES EXIST
+-- TEST 1 : EXISTENCE DES 11 TABLES
 -- ============================================================================
 
-SELECT '=== TEST 1: TABLE EXISTENCE ===' as test_name;
+SELECT '=== TEST 1 : EXISTENCE DES TABLES ===' AS test_name;
 
-SELECT 
-  CASE 
-    WHEN COUNT(*) = 11 THEN 'PASS'
-    ELSE 'FAIL'
-  END as result,
-  COUNT(*) as table_count
+SELECT
+    CASE
+        WHEN COUNT(*) = 11 THEN 'PASS — 11 tables présentes'
+        ELSE CONCAT('FAIL — ', COUNT(*), '/11 tables trouvées')
+    END AS resultat,
+    COUNT(*) AS nb_tables
 FROM information_schema.tables
 WHERE table_schema = DATABASE()
   AND table_name IN (
-    'sources', 'buyers', 'keywords', 'announcements',
-    'announcement_keywords', 'qualification_scores', 'notifications',
-    'technical_logs', 'business_logs', 'announcement_history', 'backup_logs'
+    'sources', 'acheteurs', 'mots_cles', 'annonces',
+    'annonce_mot_cle', 'qualification_scores', 'notifications',
+    'log_technique', 'log_metier', 'historique_annonces', 'log_sauvegardes'
   );
 
--- List all tables with row counts
-SELECT 
-  TABLE_NAME,
-  TABLE_ROWS,
-  ROUND((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024, 2) as size_mb
+-- Liste toutes les tables avec taille
+SELECT
+    TABLE_NAME           AS table_name,
+    TABLE_ROWS           AS lignes_approx,
+    ROUND((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024, 3) AS taille_mo
 FROM information_schema.tables
 WHERE table_schema = DATABASE()
   AND table_type = 'BASE TABLE'
 ORDER BY TABLE_NAME;
 
 -- ============================================================================
--- TEST 2: VERIFY INITIAL DATA
+-- TEST 2 : DONNÉES INITIALES
 -- ============================================================================
 
-SELECT '' as blank;
-SELECT '=== TEST 2: INITIAL DATA VERIFICATION ===' as test_name;
+SELECT '' AS sep;
+SELECT '=== TEST 2 : DONNÉES INITIALES ===' AS test_name;
 
--- Sources check
-SELECT 
-  'sources' as table_name,
-  COUNT(*) as rows_count,
-  CASE 
-    WHEN COUNT(*) = 3 THEN 'PASS - 3 sources loaded'
-    ELSE 'FAIL'
-  END as result
+-- Sources
+SELECT
+    'sources' AS table_name,
+    COUNT(*) AS nb_lignes,
+    CASE WHEN COUNT(*) = 3 THEN 'PASS — 3 sources chargées' ELSE 'FAIL' END AS resultat
 FROM sources;
 
--- Keywords check
-SELECT 
-  'keywords' as table_name,
-  COUNT(*) as rows_count,
-  CASE 
-    WHEN COUNT(*) = 10 THEN 'PASS - 10 keywords loaded'
-    ELSE 'FAIL'
-  END as result
-FROM keywords;
+-- Mots-clés
+SELECT
+    'mots_cles' AS table_name,
+    COUNT(*) AS nb_lignes,
+    CASE WHEN COUNT(*) = 10 THEN 'PASS — 10 mots-clés chargés' ELSE 'FAIL' END AS resultat
+FROM mots_cles;
 
--- Buyers check
-SELECT 
-  'buyers' as table_name,
-  COUNT(*) as rows_count,
-  CASE 
-    WHEN COUNT(*) >= 28 THEN 'PASS - 28+ buyers loaded'
-    ELSE 'FAIL'
-  END as result
-FROM buyers;
+-- Acheteurs
+SELECT
+    'acheteurs' AS table_name,
+    COUNT(*) AS nb_lignes,
+    CASE WHEN COUNT(*) >= 28 THEN 'PASS — 28+ acheteurs chargés' ELSE 'FAIL' END AS resultat
+FROM acheteurs;
 
--- Show sources
-SELECT '' as blank;
-SELECT '--- Sources ---' as detail;
-SELECT source_id, source_name, source_type, active FROM sources;
+-- Détail sources
+SELECT '' AS sep;
+SELECT '--- Sources ---' AS detail;
+SELECT id_source, nom_source, type_source, actif FROM sources;
 
--- Show keywords by category
-SELECT '' as blank;
-SELECT '--- Keywords (PRIMARY) ---' as detail;
-SELECT keyword_id, keyword_text, category FROM keywords WHERE category = 'PRIMARY';
+-- Mots-clés PRIMARY
+SELECT '' AS sep;
+SELECT '--- Mots-clés PRIMARY ---' AS detail;
+SELECT id_mot_cle, mot_cle, categorie, pertinence FROM mots_cles WHERE categorie = 'PRIMARY';
 
-SELECT '' as blank;
-SELECT '--- Keywords (SECONDARY) ---' as detail;
-SELECT keyword_id, keyword_text, category FROM keywords WHERE category = 'SECONDARY';
+-- Mots-clés SECONDARY
+SELECT '' AS sep;
+SELECT '--- Mots-clés SECONDARY ---' AS detail;
+SELECT id_mot_cle, mot_cle, categorie, pertinence FROM mots_cles WHERE categorie = 'SECONDARY';
 
--- Show buyers by type
-SELECT '' as blank;
-SELECT '--- Buyers by Type ---' as detail;
-SELECT buyer_type, COUNT(*) as count FROM buyers GROUP BY buyer_type ORDER BY count DESC;
+-- Acheteurs par type
+SELECT '' AS sep;
+SELECT '--- Acheteurs par type ---' AS detail;
+SELECT type_acheteur, COUNT(*) AS nb FROM acheteurs GROUP BY type_acheteur ORDER BY nb DESC;
 
 -- ============================================================================
--- TEST 3: VERIFY CONSTRAINTS
+-- TEST 3 : CONTRAINTE UNIQUE (source_id, id_externe)
 -- ============================================================================
 
-SELECT '' as blank;
-SELECT '=== TEST 3: CONSTRAINT VALIDATION ===' as test_name;
+SELECT '' AS sep;
+SELECT '=== TEST 3 : CONTRAINTE UNIQUE DOUBLON ===' AS test_name;
 
--- Test UNIQUE constraint (source_id, external_id)
-SELECT '' as blank;
-SELECT '--- Testing UNIQUE (source_id, external_id) constraint ---' as detail;
-
--- Insert test announcement
-INSERT INTO announcements (
-  source_id, buyer_id, external_id, title, 
-  publication_date, response_deadline
+-- Insertion valide
+INSERT INTO annonces (
+    source_id, acheteur_id, id_externe,
+    titre, date_publication, date_limite_reponse
 ) VALUES (
-  1, 1, 'TEST_EXT_001', 'Test Announcement for Constraint Validation',
-  NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY)
+    1, 1, 'TEST_CONTRAINTE_001',
+    'Annonce test contrainte unicité',
+    NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY)
 );
+SELECT 'Annonce #1 insérée avec succès' AS message;
 
-SELECT 'Announcement #1 inserted successfully' as message;
-
--- Try to insert duplicate (should fail)
-SELECT '--- Attempting duplicate (should FAIL) ---' as detail;
-INSERT INTO announcements (
-  source_id, buyer_id, external_id, title, 
-  publication_date, response_deadline
+-- Tentative de doublon (doit échouer)
+SELECT '--- Tentative insertion doublon (DOIT ÉCHOUER) ---' AS detail;
+INSERT INTO annonces (
+    source_id, acheteur_id, id_externe,
+    titre, date_publication, date_limite_reponse
 ) VALUES (
-  1, 1, 'TEST_EXT_001', 'Duplicate Announcement',
-  NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY)
+    1, 1, 'TEST_CONTRAINTE_001',
+    'Doublon annonce test',
+    NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY)
 );
-
-SELECT 'ERROR: Duplicate was inserted (constraint failed!)' as message;
+SELECT 'ERREUR : le doublon a été inséré — contrainte UNIQUE non respectée !' AS message;
 
 -- ============================================================================
--- TEST 4: FOREIGN KEY CONSTRAINTS
+-- TEST 4 : CONTRAINTE CLEF ÉTRANGÈRE
 -- ============================================================================
 
-SELECT '' as blank;
-SELECT '=== TEST 4: FOREIGN KEY VALIDATION ===' as test_name;
+SELECT '' AS sep;
+SELECT '=== TEST 4 : CLEF ÉTRANGÈRE acheteur_id ===' AS test_name;
 
--- Test FK: buyer_id must exist
-SELECT '--- Testing FK: buyer_id ---' as detail;
-INSERT INTO announcements (
-  source_id, buyer_id, external_id, title, 
-  publication_date, response_deadline
+-- Référence vers acheteur_id inexistant (doit échouer)
+SELECT '--- Tentative FK invalide acheteur_id=99999 (DOIT ÉCHOUER) ---' AS detail;
+INSERT INTO annonces (
+    source_id, acheteur_id, id_externe,
+    titre, date_publication, date_limite_reponse
 ) VALUES (
-  1, 99999, 'TEST_FK_001', 'Test FK Constraint',
-  NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY)
+    1, 99999, 'TEST_FK_001',
+    'Test contrainte FK acheteur',
+    NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY)
 );
-
-SELECT 'ERROR: Foreign key constraint was violated!' as message;
+SELECT 'ERREUR : la FK acheteur_id=99999 a été acceptée — contrainte non respectée !' AS message;
 
 -- ============================================================================
--- TEST 5: CHECK CONSTRAINTS
+-- TEST 5 : CONTRAINTE CHECK (titre minimum 6 caractères)
 -- ============================================================================
 
-SELECT '' as blank;
-SELECT '=== TEST 5: CHECK CONSTRAINT VALIDATION ===' as test_name;
+SELECT '' AS sep;
+SELECT '=== TEST 5 : CHECK titre >= 6 caractères ===' AS test_name;
 
--- Test CHECK: title length > 5
-SELECT '--- Testing CHECK: title length > 5 ---' as detail;
-INSERT INTO announcements (
-  source_id, buyer_id, external_id, title, 
-  publication_date, response_deadline
+SELECT '--- Tentative titre trop court (DOIT ÉCHOUER) ---' AS detail;
+INSERT INTO annonces (
+    source_id, acheteur_id, id_externe,
+    titre, date_publication, date_limite_reponse
 ) VALUES (
-  1, 1, 'TEST_CHK_001', 'Bad',
-  NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY)
+    1, 1, 'TEST_CHK_001',
+    'Bad',  -- ← 3 caractères, CHECK doit rejeter
+    NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY)
 );
-
-SELECT 'ERROR: Title length constraint was violated!' as message;
+SELECT 'ERREUR : le titre court a été accepté — contrainte CHECK non respectée !' AS message;
 
 -- ============================================================================
--- TEST 6: QUERY PERFORMANCE
+-- TEST 6 : INDEXES ET REQUÊTES DE PERFORMANCE
 -- ============================================================================
 
-SELECT '' as blank;
-SELECT '=== TEST 6: SAMPLE QUERIES ===' as test_name;
+SELECT '' AS sep;
+SELECT '=== TEST 6 : INDEXES ET REQUÊTES ===' AS test_name;
 
--- Count indexes
-SELECT 
-  'Total indexes created: ' as metric,
-  COUNT(*) as count
+SELECT
+    'Nombre d''indexes (hors PRIMARY) :' AS metrique,
+    COUNT(*) AS valeur
 FROM information_schema.statistics
 WHERE table_schema = DATABASE()
   AND index_name != 'PRIMARY';
 
--- Sample: Find announcements by deadline
-SELECT '' as blank;
-SELECT '--- Find announcements with deadline in next 30 days ---' as detail;
-SELECT 
-  announcement_id, 
-  title, 
-  response_deadline,
-  DATEDIFF(response_deadline, NOW()) as days_until_deadline
-FROM announcements
-WHERE response_deadline BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY)
-ORDER BY response_deadline ASC;
+-- Annonces avec deadline dans les 30 prochains jours
+SELECT '' AS sep;
+SELECT '--- Annonces deadline < 30 jours ---' AS detail;
+SELECT
+    id_annonce,
+    titre,
+    date_limite_reponse,
+    DATEDIFF(date_limite_reponse, NOW()) AS jours_restants
+FROM annonces
+WHERE date_limite_reponse BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 30 DAY)
+ORDER BY date_limite_reponse ASC;
 
--- Sample: Find announcements by region
-SELECT '' as blank;
-SELECT '--- Announcements by region (if any) ---' as detail;
-SELECT 
-  region,
-  COUNT(*) as count
-FROM announcements
+-- Répartition par région
+SELECT '' AS sep;
+SELECT '--- Annonces par région ---' AS detail;
+SELECT
+    region,
+    COUNT(*) AS nb_annonces
+FROM annonces
 WHERE region IS NOT NULL
 GROUP BY region
-ORDER BY count DESC;
+ORDER BY nb_annonces DESC;
 
 -- ============================================================================
--- TEST 7: SCHEMA RELATIONSHIPS
+-- TEST 7 : RELATIONS (JOIN annonces → sources → acheteurs)
 -- ============================================================================
 
-SELECT '' as blank;
-SELECT '=== TEST 7: RELATIONSHIP VALIDATION ===' as test_name;
+SELECT '' AS sep;
+SELECT '=== TEST 7 : JOINTURES INTER-TABLES ===' AS test_name;
 
--- Check if test announcement exists
-SELECT '' as blank;
-SELECT '--- Verification: Test announcement details ---' as detail;
-SELECT 
-  a.announcement_id,
-  a.title,
-  s.source_name,
-  b.buyer_name,
-  a.status,
-  a.imported_at
-FROM announcements a
-JOIN sources s ON a.source_id = s.source_id
-JOIN buyers b ON a.buyer_id = b.buyer_id
-WHERE a.external_id = 'TEST_EXT_001'
+SELECT '' AS sep;
+SELECT '--- Détail annonce de test avec source et acheteur ---' AS detail;
+SELECT
+    a.id_annonce,
+    a.titre,
+    s.nom_source,
+    ac.nom_acheteur,
+    a.statut,
+    a.timestamp_import
+FROM annonces a
+JOIN sources  s  ON a.source_id   = s.id_source
+JOIN acheteurs ac ON a.acheteur_id = ac.id_acheteur
+WHERE a.id_externe = 'TEST_CONTRAINTE_001'
 LIMIT 1;
 
 -- ============================================================================
--- FINAL SUMMARY
+-- TEST 8 : VALEURS ENUM FRANÇAISES
 -- ============================================================================
 
-SELECT '' as blank;
-SELECT '=== FINAL SUMMARY ===' as test_name;
-SELECT 'All critical tests completed' as message;
-SELECT 'Check ERROR messages above for any constraint violations' as warning;
+SELECT '' AS sep;
+SELECT '=== TEST 8 : ENUM FRANÇAIS ===' AS test_name;
+
+-- Vérification que les ENUM acceptent les valeurs françaises
+UPDATE annonces SET statut = 'QUALIFIE'  WHERE id_externe = 'TEST_CONTRAINTE_001';
+UPDATE annonces SET statut = 'IGNORE'    WHERE id_externe = 'TEST_CONTRAINTE_001';
+UPDATE annonces SET statut = 'REPONDU'   WHERE id_externe = 'TEST_CONTRAINTE_001';
+UPDATE annonces SET statut = 'NOUVEAU'   WHERE id_externe = 'TEST_CONTRAINTE_001';
+
+SELECT
+    id_externe,
+    statut,
+    CASE
+        WHEN statut = 'NOUVEAU' THEN 'PASS — ENUM français OK'
+        ELSE 'FAIL'
+    END AS resultat
+FROM annonces
+WHERE id_externe = 'TEST_CONTRAINTE_001';
 
 -- ============================================================================
--- END OF SCRIPT
+-- NETTOYAGE DES DONNÉES DE TEST
+-- ============================================================================
+
+SELECT '' AS sep;
+SELECT '--- Nettoyage données de test ---' AS detail;
+DELETE FROM annonces WHERE id_externe LIKE 'TEST_%';
+SELECT CONCAT('Lignes supprimées : ', ROW_COUNT()) AS message;
+
+-- ============================================================================
+-- BILAN FINAL
+-- ============================================================================
+
+SELECT '' AS sep;
+SELECT '=== BILAN FINAL ===' AS test_name;
+SELECT 'Tests du schéma terminés' AS message;
+SELECT 'Vérifier les messages FAIL/ERREUR ci-dessus pour toute anomalie' AS avertissement;
+
+-- ============================================================================
+-- FIN FICHIER : 01_test_schema.sql
 -- ============================================================================

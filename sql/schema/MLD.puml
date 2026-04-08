@@ -1,155 +1,180 @@
 @startuml MLD_Unitee
 !theme plain
+skinparam linetype ortho
 
-title MLD - UNITEE Logical Data Model
+title MLD - UNITEE Veille Marchés Publics
 
-entity SOURCES {
-  *source_id : INT
+' ============================================================
+' TABLES MÉTIER
+' ============================================================
+
+entity sources {
+  *id_source : INT (PK)
   --
-  source_name : VARCHAR(100)
-  description : TEXT
-  api_base_url : VARCHAR(500)
-  source_type : VARCHAR(50)
-  active : BOOLEAN
-  created_at : DATETIME
+  nom_source : VARCHAR(100) UNIQUE NOT NULL
+  type_source : ENUM(API, SCRAPING, FLUX_RSS)
+  url_base : VARCHAR(500)
+  actif : BOOLEAN
+  date_creation : DATETIME
 }
 
-entity BUYERS {
-  *buyer_id : INT
+entity acheteurs {
+  *id_acheteur : INT (PK)
   --
-  buyer_name : VARCHAR(255)
-  buyer_type : VARCHAR(100)
+  nom_acheteur : VARCHAR(255) UNIQUE NOT NULL
+  type_acheteur : ENUM(COLLECTIVITE, ETAT, ENTREPRISE_PUBLIQUE)
   region : VARCHAR(100)
   contact_email : VARCHAR(255)
   contact_phone : VARCHAR(20)
-  created_at : DATETIME
+  date_creation : DATETIME
 }
 
-entity KEYWORDS {
-  *keyword_id : INT
+entity mots_cles {
+  *id_mot_cle : INT (PK)
   --
-  keyword_text : VARCHAR(100)
-  category : VARCHAR(50)
-  created_at : DATETIME
+  mot_cle : VARCHAR(100) UNIQUE NOT NULL
+  categorie : ENUM(PRIMARY, SECONDARY, EXTRACTED)
+  pertinence : INT (0-100)
+  date_creation : DATETIME
 }
 
-entity ANNOUNCEMENTS {
-  *announcement_id : BIGINT
-  #source_id : INT
-  #buyer_id : INT
+entity annonces {
+  *id_annonce : BIGINT (PK)
+  #id_source : INT (FK → sources)
+  #id_acheteur : INT (FK → acheteurs)
   --
-  external_id : VARCHAR(100)
-  title : VARCHAR(500)
+  id_externe : VARCHAR(100) NOT NULL
+  titre : VARCHAR(500) NOT NULL
+  resume : TEXT
   description : LONGTEXT
-  estimated_amount : DECIMAL
-  currency : VARCHAR(3)
-  publication_date : DATETIME
-  response_deadline : DATETIME
-  location : VARCHAR(255)
+  montant_estime : DECIMAL(15,2)
+  devise : VARCHAR(3)
+  date_publication : DATETIME NOT NULL
+  date_limite_reponse : DATETIME NOT NULL
+  localisation : VARCHAR(255)
   region : VARCHAR(100)
-  source_link : TEXT
-  status : ENUM
-  imported_at : DATETIME
-  updated_at : DATETIME
+  lien_source : TEXT UNIQUE
+  statut : ENUM(NOUVEAU, QUALIFIE, IGNORE, REPONDU)
+  timestamp_import : DATETIME
+  timestamp_maj : DATETIME
+  -- UNIQUE(id_source, id_externe)
 }
 
-entity ANNOUNCEMENT_KEYWORDS {
-  *announcement_id : BIGINT
-  *keyword_id : INT
+' Table d'association N:N
+entity annonce_mot_cle {
+  *id_annonce : BIGINT (PK, FK → annonces)
+  *id_mot_cle : INT (PK, FK → mots_cles)
   --
-  relevance_score : INT
-  extraction_type : VARCHAR(50)
-  extracted_at : DATETIME
+  score_pertinence : INT (0-100)
+  type_extraction : ENUM(REGEX, TF-IDF, MANUEL, LLM)
+  date_extraction : DATETIME
 }
 
-entity QUALIFICATION_SCORES {
-  *score_id : INT
-  #announcement_id : BIGINT
+' ============================================================
+' TABLES DE QUALIFICATION
+' ============================================================
+
+entity scores_pertinence {
+  *id_score : INT (PK)
+  #id_annonce : BIGINT UNIQUE (FK → annonces)
   --
-  pertinence_score : INT
-  alert_level : VARCHAR(50)
-  scoring_reason : TEXT
-  keyword_bonus : INT
-  amount_bonus : INT
-  deadline_bonus : INT
-  buyer_bonus : INT
-  calculated_at : DATETIME
-  updated_at : DATETIME
+  score_pertinence : INT NOT NULL (0-100)
+  niveau_alerte : ENUM(CRITIQUE, URGENT, NORMAL, IGNORE)
+  raison_scoring : TEXT
+  bonus_keywords : INT
+  bonus_montant : INT
+  bonus_deadline : INT
+  bonus_acheteur : INT
+  date_calcul : DATETIME
+  date_maj : DATETIME
 }
 
-entity NOTIFICATIONS {
-  *notification_id : BIGINT
-  #announcement_id : BIGINT
+entity notifications {
+  *id_notification : BIGINT (PK)
+  #id_annonce : BIGINT (FK → annonces)
   --
-  alert_type : VARCHAR(50)
-  status : VARCHAR(50)
-  priority : INT
-  created_at : DATETIME
-  sent_at : DATETIME
-  acknowledged_at : DATETIME
+  type_alerte : VARCHAR(50) NOT NULL
+  statut : ENUM(NOUVEAU, ENVOYE, ACQUITTE, ARCHIVE)
+  priorite : INT (1-5)
   message : LONGTEXT
+  date_creation : DATETIME
+  date_envoi : DATETIME
+  date_acquittement : DATETIME
 }
 
-entity TECHNICAL_LOGS {
-  *log_id : BIGINT
+' ============================================================
+' TABLES TECHNIQUES (AUDIT & LOGS)
+' ============================================================
+
+entity log_technique {
+  *id_log_tech : BIGINT (PK)
   --
-  timestamp : DATETIME
-  operation_type : VARCHAR(100)
-  operation_source : VARCHAR(100)
-  status : VARCHAR(50)
+  timestamp : DATETIME NOT NULL
+  type_operation : VARCHAR(100)
+  source_operation : VARCHAR(100)
+  statut : ENUM(OK, WARNING, ERREUR)
   message : TEXT
   details_json : JSON
-  duration_ms : INT
+  duree_ms : INT
 }
 
-entity BUSINESS_LOGS {
-  *log_id : BIGINT
-  #announcement_id : BIGINT
+entity log_metier {
+  *id_log_metier : BIGINT (PK)
+  #id_annonce : BIGINT (FK → annonces)
   --
-  timestamp : DATETIME
-  operation_type : VARCHAR(100)
-  user : VARCHAR(255)
+  timestamp : DATETIME NOT NULL
+  type_operation : VARCHAR(100)
+  utilisateur : VARCHAR(255)
   description : TEXT
-  before_state : JSON
-  after_state : JSON
+  avant_etat : JSON
+  apres_etat : JSON
 }
 
-entity ANNOUNCEMENT_HISTORY {
-  *history_id : BIGINT
-  #announcement_id : BIGINT
+entity historique_annonces {
+  *id_historique : BIGINT (PK)
+  #id_annonce : BIGINT (FK → annonces)
   --
-  timestamp : DATETIME
-  modification_type : VARCHAR(100)
-  modified_column : VARCHAR(100)
-  old_value : TEXT
-  new_value : TEXT
+  timestamp : DATETIME NOT NULL
+  type_modification : VARCHAR(100)
+  colonne_modifiee : VARCHAR(100)
+  valeur_ancienne : TEXT
+  valeur_nouvelle : TEXT
 }
 
-entity BACKUP_LOGS {
-  *backup_id : INT
+entity log_sauvegardes {
+  *id_log_sauvegarde : INT (PK)
   --
-  timestamp : DATETIME
-  backup_type : VARCHAR(50)
-  backup_file : VARCHAR(500)
-  status : VARCHAR(50)
-  file_size : BIGINT
-  duration_seconds : INT
-  error_message : TEXT
+  timestamp : DATETIME NOT NULL
+  type_sauvegarde : ENUM(COMPLETE, INCREMENTALE)
+  fichier : VARCHAR(500)
+  statut : ENUM(OK, ERREUR)
+  taille_fichier : BIGINT
+  duree_secondes : INT
+  message_erreur : TEXT
 }
 
-SOURCES ||--o{ ANNOUNCEMENTS
-BUYERS ||--o{ ANNOUNCEMENTS
-ANNOUNCEMENTS }o--|| ANNOUNCEMENT_KEYWORDS
-KEYWORDS ||--o{ ANNOUNCEMENT_KEYWORDS
-ANNOUNCEMENTS ||--|| QUALIFICATION_SCORES
-ANNOUNCEMENTS ||--o{ NOTIFICATIONS
-ANNOUNCEMENTS ||--o{ BUSINESS_LOGS
-ANNOUNCEMENTS ||--o{ ANNOUNCEMENT_HISTORY
+' ============================================================
+' RELATIONS (cardinalités MLD)
+' ============================================================
+
+sources ||--o{ annonces : "id_source"
+acheteurs ||--o{ annonces : "id_acheteur"
+
+annonces ||--o{ annonce_mot_cle : "id_annonce"
+mots_cles ||--o{ annonce_mot_cle : "id_mot_cle"
+
+annonces ||--|| scores_pertinence : "id_annonce (1:1)"
+annonces ||--o{ notifications : "id_annonce"
+annonces ||--o{ log_metier : "id_annonce"
+annonces ||--o{ historique_annonces : "id_annonce"
 
 note bottom
-  Legend:
-  * = Primary Key
-  # = Foreign Key
+  Légende :
+  * = Clé primaire (PK)
+  # = Clé étrangère (FK)
+  RESTRICT = suppression bloquée si enfants existent
+  CASCADE = suppression propagée aux enfants
+  UNIQUE(id_source, id_externe) = détection doublons
 end note
 
 @enduml

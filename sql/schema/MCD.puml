@@ -1,158 +1,141 @@
 @startuml MCD_Unitee
 !theme plain
+skinparam linetype ortho
 
-title MCD - UNITEE Public Market Surveillance System
+title MCD - UNITEE Veille Marchés Publics
+
+' ============================================================
+' ENTITÉS MÉTIER
+' ============================================================
 
 entity SOURCE {
-  *source_id
-  --
-  source_name
-  description
-  api_base_url
-  source_type
+  nom_source
+  type_source
+  url_base
+  actif
 }
 
-entity BUYER {
-  *buyer_id
-  --
-  buyer_name
-  buyer_type
+entity ACHETEUR {
+  nom_acheteur
+  type_acheteur
   region
   contact_email
 }
 
-entity KEYWORD {
-  *keyword_id
-  --
-  keyword_text
-  category
+entity MOT_CLE {
+  mot_cle
+  categorie
+  pertinence
 }
 
-entity ANNOUNCEMENT {
-  *announcement_id
-  #source_id
-  #buyer_id
-  --
-  external_id
-  title
+entity ANNONCE {
+  id_externe
+  titre
   description
-  estimated_amount
-  publication_date
-  response_deadline
-  location
-  source_link
-  status
-  import_timestamp
+  montant_estime
+  date_publication
+  date_limite_reponse
+  localisation
+  region
+  lien_source
+  statut
 }
 
-entity ANNOUNCEMENT_KEYWORD {
-  *announcement_id
-  *keyword_id
-  --
-  relevance_score
-  extraction_type
-  extraction_date
-}
-
-entity QUALIFICATION {
-  *score_id
-  #announcement_id
-  --
-  pertinence_score
-  alert_level
-  scoring_reason
-  keyword_bonus
-  amount_bonus
-  deadline_bonus
-  buyer_bonus
+entity SCORE_PERTINENCE {
+  score_pertinence
+  niveau_alerte
+  raison_scoring
+  bonus_keywords
+  bonus_montant
+  bonus_deadline
+  bonus_acheteur
 }
 
 entity NOTIFICATION {
-  *notification_id
-  #announcement_id
-  --
-  alert_type
-  status
-  priority
-  creation_date
-  sent_date
-  acknowledged_date
+  type_alerte
+  statut
+  priorite
+  message
+  date_envoi
 }
 
-entity TECHNICAL_LOG {
-  *log_id
-  --
-  timestamp
-  operation_type
-  operation_source
-  status
+entity LOG_TECHNIQUE {
+  type_operation
+  source_operation
+  statut
   message
   details_json
-  duration_ms
+  duree_ms
 }
 
-entity BUSINESS_LOG {
-  *business_log_id
-  #announcement_id
-  --
-  timestamp
-  operation_type
-  user
+entity LOG_METIER {
+  type_operation
+  utilisateur
   description
-  before_state
-  after_state
+  avant_etat
+  apres_etat
 }
 
-entity ANNOUNCEMENT_HISTORY {
-  *history_id
-  #announcement_id
-  --
-  timestamp
-  modification_type
-  modified_column
-  old_value
-  new_value
+entity HISTORIQUE_ANNONCE {
+  type_modification
+  colonne_modifiee
+  valeur_ancienne
+  valeur_nouvelle
 }
 
-entity BACKUP_LOG {
-  *backup_id
-  --
-  timestamp
-  backup_type
-  backup_file
-  status
-  file_size
-  duration_seconds
+entity LOG_SAUVEGARDE {
+  type_sauvegarde
+  fichier
+  statut
+  taille_fichier
+  duree_secondes
+  message_erreur
 }
 
-SOURCE ||--o{ ANNOUNCEMENT
-BUYER ||--o{ ANNOUNCEMENT
-ANNOUNCEMENT }o--|| ANNOUNCEMENT_KEYWORD
-KEYWORD ||--o{ ANNOUNCEMENT_KEYWORD
-ANNOUNCEMENT ||--|| QUALIFICATION
-ANNOUNCEMENT ||--o{ NOTIFICATION
-ANNOUNCEMENT ||--o{ BUSINESS_LOG
-ANNOUNCEMENT ||--o{ ANNOUNCEMENT_HISTORY
+' ============================================================
+' ASSOCIATIONS ET CARDINALITÉS
+' ============================================================
 
-note right of ANNOUNCEMENT
-  Composite UNIQUE key:
-  (source_id, external_id)
+' Une SOURCE publie plusieurs ANNONCES
+' Une ANNONCE provient d'exactement une SOURCE
+SOURCE ||--o{ ANNONCE : "publie"
+
+' Un ACHETEUR émet plusieurs ANNONCES
+' Une ANNONCE est émise par exactement un ACHETEUR
+ACHETEUR ||--o{ ANNONCE : "émet"
+
+' Une ANNONCE contient plusieurs MOT_CLÉ (et un MOT_CLÉ peut être dans plusieurs ANNONCES)
+' Table d'association avec score contextuel
+ANNONCE }o--o{ MOT_CLE : "contient"
+
+' Une ANNONCE a exactement un SCORE_PERTINENCE (1:1)
+ANNONCE ||--|| SCORE_PERTINENCE : "est évaluée par"
+
+' Une ANNONCE génère plusieurs NOTIFICATIONS
+ANNONCE ||--o{ NOTIFICATION : "génère"
+
+' Une ANNONCE a plusieurs LOG_METIER (traçabilité)
+ANNONCE ||--o{ LOG_METIER : "est tracée dans"
+
+' Une ANNONCE a plusieurs HISTORIQUE_ANNONCE (versioning)
+ANNONCE ||--o{ HISTORIQUE_ANNONCE : "est archivée dans"
+
+' LOG_TECHNIQUE est indépendant (pas de FK vers ANNONCE)
+note right of LOG_TECHNIQUE
+  Logs système (imports, erreurs, perfs)
+  Entité indépendante - pas de lien FK
 end note
 
-note right of ANNOUNCEMENT_KEYWORD
-  N:N linking table
-  Only place for
-  relevance_score
+' LOG_SAUVEGARDE est indépendant
+note right of LOG_SAUVEGARDE
+  Traçabilité des sauvegardes
+  Entité indépendante - pas de lien FK
 end note
 
-note right of TECHNICAL_LOG
-  System operations
-  No FK needed
-end note
-
-note right of BACKUP_LOG
-  Backup tracking
-  Independent entity
+note bottom of ANNONCE
+  Contrainte d'unicité métier :
+  (source, id_externe) → doublon impossible
+  Même annonce sur plusieurs sources = entrées distinctes
 end note
 
 @enduml

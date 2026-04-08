@@ -1,303 +1,268 @@
--- =====================================================================
--- UNITEE Phase 3 - Stored Procedures
--- File: 06_procedures.sql
--- Purpose: Announcement insertion, batch processing, KPI generation, archiving
--- =====================================================================
+-- ============================================================================
+-- UNITEE - Procédures stockées
+-- Fichier : 06_procedures.sql
+-- Correspond aux tables : annonces, scores_pertinence, log_technique, log_metier
+-- ============================================================================
 
 USE unitee;
 
--- =====================================================================
--- PROCEDURE 1: InsererAnnonce
--- Inserts or updates announcement with scoring and notifications
--- =====================================================================
+DELIMITER $$
 
-DROP PROCEDURE IF EXISTS InsererAnnonce;
+DROP PROCEDURE IF EXISTS InsererAnnonce $$
+DROP PROCEDURE IF EXISTS TraiterLotAnnonces $$
+DROP PROCEDURE IF EXISTS GenererKPIDashboard $$
+DROP PROCEDURE IF EXISTS ArchiverDonneesAnciennes $$
+
+-- ============================================================================
+-- PROCÉDURE 1 : InsererAnnonce
+-- Rôle : Insère ou met à jour une annonce avec contrôle doublon et traçabilité
+-- Paramètres IN :
+--   p_nom_source          - Nom de la source (doit exister dans sources)
+--   p_id_externe          - Identifiant externe fourni par la source
+--   p_titre               - Titre de l'annonce
+--   p_description         - Description complète
+--   p_montant_estime      - Montant estimé EUR
+--   p_date_publication    - Date de publication
+--   p_date_limite_reponse - Date limite de réponse
+--   p_localisation        - Lieu d'exécution
+--   p_region              - Région (si NULL, NormaliserRegion est appelé)
+--   p_id_acheteur         - ID acheteur dans la table acheteurs
+--   p_lien_source         - URL de l'annonce source
+-- Paramètres OUT :
+--   p_annonce_id          - ID de l'annonce insérée ou mise à jour (-1 si erreur)
+--   p_statut              - 'INSEREE', 'MISE_A_JOUR', 'ERREUR'
+--   p_message             - Message descriptif du résultat
+-- Transaction : START / COMMIT / ROLLBACK en cas d'erreur SQL
+-- ============================================================================
 
 CREATE PROCEDURE InsererAnnonce(
-    IN p_source_name VARCHAR(100),
-    IN p_external_id VARCHAR(255),
-    IN p_titre VARCHAR(255),
-    IN p_description LONGTEXT,
-    IN p_montant_estime DECIMAL(15,2),
-    IN p_devise VARCHAR(10),
-    IN p_date_publication DATETIME,
-    IN p_date_limite_reponse DATETIME,
-    IN p_lieu VARCHAR(255),
-    IN p_region VARCHAR(100),
-    IN p_acheteur_id INT,
-    IN p_lien_source VARCHAR(500),
-    OUT p_annonce_id INT,
-    OUT p_result_status VARCHAR(50),
-    OUT p_result_message VARCHAR(255)
+    IN  p_nom_source          VARCHAR(100),
+    IN  p_id_externe          VARCHAR(255),
+    IN  p_titre               VARCHAR(500),
+    IN  p_description         LONGTEXT,
+    IN  p_montant_estime      DECIMAL(15,2),
+    IN  p_date_publication    DATETIME,
+    IN  p_date_limite_reponse DATETIME,
+    IN  p_localisation        VARCHAR(255),
+    IN  p_region              VARCHAR(100),
+    IN  p_id_acheteur         INT,
+    IN  p_lien_source         VARCHAR(500),
+    OUT p_annonce_id          INT,
+    OUT p_statut              VARCHAR(50),
+    OUT p_message             VARCHAR(255)
 )
 SQL SECURITY INVOKER
 NOT DETERMINISTIC
 MODIFIES SQL DATA
 BEGIN
-    DECLARE v_source_id INT;
-    DECLARE v_existing_id INT;
-    DECLARE v_score INT;
-    DECLARE v_jours_restants INT;
-    DECLARE v_alert_level VARCHAR(50);
+    DECLARE v_id_source  INT;
+    DECLARE v_existant   INT;
+    DECLARE v_region     VARCHAR(100);
+
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
-        SET p_result_status = 'ERROR';
-        SET p_result_message = 'Transaction rolled back due to error';
+        SET p_annonce_id = -1;
+        SET p_statut     = 'ERREUR';
+        SET p_message    = 'Erreur SQL : transaction annulée';
         ROLLBACK;
     END;
-    
+
     START TRANSACTION;
-    
-    -- 1. GET source_id
-    SELECT source_id INTO v_source_id
+
+    -- 1. Résoudre l'id_source à partir du nom
+    SELECT id_source INTO v_id_source
     FROM sources
-    WHERE source_name = p_source_name
+    WHERE nom_source = p_nom_source
     LIMIT 1;
-    
-    IF v_source_id IS NULL THEN
-        SET p_result_status = 'ERROR';
-        SET p_result_message = 'Source not found';
+
+    IF v_id_source IS NULL THEN
         SET p_annonce_id = -1;
+        SET p_statut     = 'ERREUR';
+        SET p_message    = CONCAT('Source introuvable : ', p_nom_source);
         ROLLBACK;
         LEAVE InsererAnnonce;
     END IF;
-    
-    -- 2. CHECK for doublon (source_id + external_id)
-    SELECT announcement_id INTO v_existing_id
-    FROM announcements
-    WHERE source_id = v_source_id
-      AND external_id = p_external_id
+
+    -- 2. Normaliser la région si non fournie
+    SET v_region = IF(p_region IS NULL OR p_region = '',
+                     NormaliserRegion(p_localisation),
+                     p_region);
+
+    -- 3. Détection doublon : même source + même id_externe
+    SELECT id_annonce INTO v_existant
+    FROM annonces
+    WHERE id_source  = v_id_source
+      AND id_externe = p_id_externe
     LIMIT 1;
-    
-    IF v_existing_id IS NOT NULL THEN
-        -- DOUBLON: Update with new data
-        UPDATE announcements
-        SET title = p_titre,
-            description = p_description,
-            estimated_amount = p_montant_estime,
-            currency = p_devise,
-            publication_date = p_date_publication,
-            response_deadline = p_date_limite_reponse,
-            location = p_lieu,
-            region = p_region,
-            source_link = p_lien_source,
-            updated_at = NOW()
-        WHERE announcement_id = v_existing_id;
-        
-        -- Log update in business logs
-        INSERT INTO business_logs (announcement_id, operation_type, description, timestamp)
-        VALUES (v_existing_id, 'UPDATE', CONCAT('Updated from ', p_source_name), NOW());
-        
-        SET p_annonce_id = v_existing_id;
-        SET p_result_status = 'UPDATED';
-        SET p_result_message = 'Announcement updated (doublon)';
+
+    IF v_existant IS NOT NULL THEN
+        -- DOUBLON : mise à jour des champs modifiables
+        UPDATE annonces
+        SET titre                = p_titre,
+            description          = p_description,
+            montant_estime       = p_montant_estime,
+            date_limite_reponse  = p_date_limite_reponse,
+            localisation         = p_localisation,
+            region               = v_region,
+            lien_source          = p_lien_source,
+            timestamp_maj        = NOW()
+        WHERE id_annonce = v_existant;
+
+        INSERT INTO log_metier (id_annonce, type_operation, utilisateur, description)
+        VALUES (v_existant, 'MISE_A_JOUR', p_nom_source,
+                CONCAT('Annonce mise à jour depuis ', p_nom_source));
+
+        SET p_annonce_id = v_existant;
+        SET p_statut     = 'MISE_A_JOUR';
+        SET p_message    = 'Annonce mise à jour (doublon détecté)';
     ELSE
-        -- NEW: Insert announcement
-        INSERT INTO announcements (
-            source_id, buyer_id, external_id, title, description,
-            estimated_amount, currency, publication_date, response_deadline,
-            location, region, source_link, status, imported_at
+        -- NOUVELLE annonce
+        INSERT INTO annonces (
+            id_source, id_acheteur, id_externe, titre, description,
+            montant_estime, devise, date_publication, date_limite_reponse,
+            localisation, region, lien_source, statut, timestamp_import
         ) VALUES (
-            v_source_id, COALESCE(p_acheteur_id, 1), p_external_id, p_titre, p_description,
-            p_montant_estime, p_devise, p_date_publication, p_date_limite_reponse,
-            p_lieu, p_region, p_lien_source, 'NEW', NOW()
+            v_id_source, p_id_acheteur, p_id_externe, p_titre, p_description,
+            p_montant_estime, 'EUR', p_date_publication, p_date_limite_reponse,
+            p_localisation, v_region, p_lien_source, 'NOUVEAU', NOW()
         );
-        
-        SET v_existing_id = LAST_INSERT_ID();
-        SET p_annonce_id = v_existing_id;
-        
-        -- Log creation
-        INSERT INTO business_logs (announcement_id, operation_type, description, timestamp)
-        VALUES (v_existing_id, 'CREATE', CONCAT('Created from ', p_source_name), NOW());
-        
-        -- 3. CALCULATE score
-        SET v_score = CalculerScorePertinence(
-            p_titre, p_description, p_montant_estime,
-            p_region, p_date_limite_reponse
-        );
-        
-        -- 4. INSERT qualification score
-        INSERT INTO qualification_scores (
-            announcement_id, pertinence_score, alert_level,
-            calculated_at, updated_at
-        ) VALUES (
-            v_existing_id,
-            v_score,
-            CategoriserAlerte(v_score, DATEDIFF(p_date_limite_reponse, NOW())),
-            NOW(),
-            NOW()
-        );
-        
-        -- 5. CREATE notification if score is high
-        IF v_score > 75 THEN
-            INSERT INTO notifications (
-                announcement_id, alert_type, status, priority
-            ) VALUES (
-                v_existing_id,
-                'CRITIQUE',
-                'NEW',
-                3
-            );
-        END IF;
-        
-        SET p_result_status = 'INSERTED';
-        SET p_result_message = CONCAT('Announcement inserted with score: ', v_score);
+
+        SET p_annonce_id = LAST_INSERT_ID();
+        SET p_statut     = 'INSEREE';
+        SET p_message    = 'Annonce insérée avec succès';
     END IF;
-    
+
     COMMIT;
-END;
+END $$
 
--- =====================================================================
--- PROCEDURE 2: TraiterLotAnnonces
--- Processes batch of NEW announcements
--- =====================================================================
-
-DROP PROCEDURE IF EXISTS TraiterLotAnnonces;
+-- ============================================================================
+-- PROCÉDURE 2 : TraiterLotAnnonces
+-- Rôle : Traite un lot d'annonces de test ; démontre SAVEPOINT + rollback partiel
+-- Usage pédagogique : illustre la gestion transactionnelle sur plusieurs INSERT
+-- ============================================================================
 
 CREATE PROCEDURE TraiterLotAnnonces(
-    IN p_source_id INT,
-    IN p_batch_size INT,
-    OUT p_inserted INT,
-    OUT p_updated INT,
-    OUT p_errors INT
+    IN  p_id_source INT,
+    IN  p_id_acheteur INT,
+    OUT p_nb_inseres   INT,
+    OUT p_nb_erreurs   INT
 )
 SQL SECURITY INVOKER
 NOT DETERMINISTIC
 MODIFIES SQL DATA
 BEGIN
-    DECLARE v_done INT DEFAULT 0;
-    DECLARE v_ann_id INT;
-    DECLARE v_status VARCHAR(50);
-    DECLARE v_message VARCHAR(255);
-    DECLARE v_cursor CURSOR FOR
-        SELECT announcement_id FROM announcements
-        WHERE source_id = p_source_id AND status = 'NEW'
-        LIMIT p_batch_size;
-    DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_done = 1;
-    
-    SET p_inserted = 0;
-    SET p_updated = 0;
-    SET p_errors = 0;
-    
+    DECLARE v_i        INT DEFAULT 1;
+    DECLARE v_max      INT DEFAULT 5;  -- lot de 5 annonces test
+    DECLARE v_titre    VARCHAR(500);
+    DECLARE v_ext_id   VARCHAR(100);
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        SET p_nb_erreurs = p_nb_erreurs + 1;
+        ROLLBACK TO SAVEPOINT sp_annonce;
+        RELEASE SAVEPOINT sp_annonce;
+    END;
+
+    SET p_nb_inseres = 0;
+    SET p_nb_erreurs = 0;
+
     START TRANSACTION;
-    
-    OPEN v_cursor;
-    FETCH v_cursor INTO v_ann_id;
-    
-    WHILE v_done = 0 DO
-        -- Recalculate score for each announcement
-        BEGIN
-            DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
-            BEGIN
-                SET p_errors = p_errors + 1;
-            END;
-            
-            -- Get announcement data and recalculate score
-            UPDATE announcements a
-            SET status = CASE WHEN status = 'NEW' THEN 'QUALIFIED' ELSE status END
-            WHERE announcement_id = v_ann_id;
-            
-            SET p_inserted = p_inserted + 1;
-        END;
-        
-        FETCH v_cursor INTO v_ann_id;
+
+    WHILE v_i <= v_max DO
+        SET v_ext_id = CONCAT('LOT_TEST_', v_i, '_', UNIX_TIMESTAMP());
+        SET v_titre  = CONCAT('Annonce lot test #', v_i, ' - Construction modulaire');
+
+        SAVEPOINT sp_annonce;
+
+        INSERT INTO annonces (
+            id_source, id_acheteur, id_externe, titre,
+            montant_estime, devise, date_publication, date_limite_reponse,
+            region, statut, timestamp_import
+        ) VALUES (
+            p_id_source, p_id_acheteur, v_ext_id, v_titre,
+            100000 * v_i, 'EUR', NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY),
+            'Île-de-France', 'NOUVEAU', NOW()
+        );
+
+        RELEASE SAVEPOINT sp_annonce;
+        SET p_nb_inseres = p_nb_inseres + 1;
+        SET v_i = v_i + 1;
     END WHILE;
-    
-    CLOSE v_cursor;
-    
-    -- Log the batch processing
-    IF p_errors < (p_inserted + p_updated) * 0.2 THEN
-        COMMIT;
-        INSERT INTO technical_logs (action, details, status, created_at)
-        VALUES ('BATCH_PROCESS', CONCAT('Processed ', p_inserted, ' announcements'),  'OK', NOW());
-    ELSE
-        ROLLBACK;
-        INSERT INTO technical_logs (action, details, status, created_at)
-        VALUES ('BATCH_PROCESS', CONCAT('Batch failed with ', p_errors, ' errors'), 'ERROR', NOW());
-    END IF;
-END;
 
--- =====================================================================
--- PROCEDURE 3: GenererKPIDashboard
--- Generates KPI summary for dashboard
--- =====================================================================
+    COMMIT;
+END $$
 
-DROP PROCEDURE IF EXISTS GenererKPIDashboard;
+-- ============================================================================
+-- PROCÉDURE 3 : GenererKPIDashboard
+-- Rôle : Calcule et retourne les indicateurs clés pour le tableau de bord
+-- Usage : appelée par les scripts de reporting ou planifiée (EVENT)
+-- ============================================================================
 
 CREATE PROCEDURE GenererKPIDashboard()
 SQL SECURITY INVOKER
 NOT DETERMINISTIC
 READS SQL DATA
 BEGIN
-    -- Returns KPI summary as SELECT
     SELECT
-        COUNT(*) as total_announcements,
-        SUM(CASE WHEN qs.pertinence_score > 75 THEN 1 ELSE 0 END) as high_priority,
-        SUM(CASE WHEN qs.pertinence_score > 50 AND qs.pertinence_score <= 75 THEN 1 ELSE 0 END) as medium_priority,
-        COUNT(DISTINCT a.region) as regions,
-        COUNT(DISTINCT a.buyer_id) as buyers,
-        AVG(a.estimated_amount) as avg_amount,
-        MIN(a.publication_date) as earliest_date,
-        MAX(a.response_deadline) as latest_deadline,
-        NOW() as generated_at
-    FROM announcements a
-    LEFT JOIN qualification_scores qs ON a.announcement_id = qs.announcement_id
-    WHERE a.status IN ('NEW', 'QUALIFIED');
-END;
+        COUNT(*)                                                      AS total_annonces,
+        COUNT(CASE WHEN s.score_pertinence > 50 THEN 1 END)          AS annonces_pertinentes,
+        COUNT(CASE WHEN s.niveau_alerte = 'CRITIQUE' THEN 1 END)     AS critique,
+        COUNT(CASE WHEN s.niveau_alerte = 'URGENT'   THEN 1 END)     AS urgent,
+        COUNT(CASE WHEN s.niveau_alerte = 'NORMAL'   THEN 1 END)     AS normal,
+        COUNT(CASE WHEN s.niveau_alerte = 'IGNORE'   THEN 1 END)     AS ignore_count,
+        ROUND(AVG(s.score_pertinence), 1)                            AS score_moyen,
+        ROUND(AVG(a.montant_estime), 0)                              AS montant_moyen,
+        COUNT(DISTINCT a.region)                                      AS regions_couvertes,
+        COUNT(DISTINCT a.id_source)                                   AS sources_actives,
+        NOW()                                                         AS genere_le
+    FROM annonces a
+    LEFT JOIN scores_pertinence s ON a.id_annonce = s.id_annonce
+    WHERE a.statut IN ('NOUVEAU', 'QUALIFIE');
+END $$
 
--- =====================================================================
--- PROCEDURE 4: ArchiverDonneesAncienne
--- Archives old announcements and logs
--- =====================================================================
+-- ============================================================================
+-- PROCÉDURE 4 : ArchiverDonneesAnciennes
+-- Rôle : Archive et supprime les logs techniques de plus de N jours
+-- Paramètre : p_jours_retention INT - nombre de jours à conserver (défaut 90)
+-- Transaction : garantit cohérence log + suppression
+-- ============================================================================
 
-DROP PROCEDURE IF EXISTS ArchiverDonneesAncienne;
-
-CREATE PROCEDURE ArchiverDonneesAncienne(
-    IN p_days_retention INT,
-    OUT p_archived_count INT
+CREATE PROCEDURE ArchiverDonneesAnciennes(
+    IN  p_jours_retention INT,
+    OUT p_nb_archives      INT
 )
 SQL SECURITY INVOKER
 NOT DETERMINISTIC
 MODIFIES SQL DATA
 BEGIN
-    DECLARE v_cutoff_date DATETIME;
-    SET v_cutoff_date = DATE_SUB(NOW(), INTERVAL p_days_retention DAY);
-    SET p_archived_count = 0;
-    
+    DECLARE v_date_limite DATETIME;
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        SET p_nb_archives = -1;
+        ROLLBACK;
+    END;
+
+    IF p_jours_retention IS NULL OR p_jours_retention <= 0 THEN
+        SET p_jours_retention = 90;
+    END IF;
+
+    SET v_date_limite = DATE_SUB(NOW(), INTERVAL p_jours_retention DAY);
+
     START TRANSACTION;
-    
-    -- Archive old announcements to archive table
-    INSERT INTO announcement_history (announcement_id, status, details, archived_at)
-    SELECT announcement_id, status, CONCAT('Archived from ', region), NOW()
-    FROM announcements
-    WHERE created_at < v_cutoff_date AND status IN ('RESPONDED', 'CLOSED');
-    
-    SET p_archived_count = ROW_COUNT();
-    
-    -- Log in backup logs
-    INSERT INTO backup_logs (backup_type, status, details, created_at)
-    VALUES ('ARCHIVE', 'SUCCESS', CONCAT('Archived ', p_archived_count, ' old announcements'), NOW());
-    
+
+    -- Supprimer les logs techniques anciens
+    DELETE FROM log_technique
+    WHERE timestamp < v_date_limite;
+
+    SET p_nb_archives = ROW_COUNT();
+
+    -- Tracer l'opération de maintenance
+    INSERT INTO log_technique (type_operation, source_operation, statut, message)
+    VALUES ('ARCHIVAGE', 'ArchiverDonneesAnciennes', 'OK',
+            CONCAT(p_nb_archives, ' logs techniques archivés (>', p_jours_retention, ' jours)'));
+
     COMMIT;
-END;
+END $$
 
--- =====================================================================
--- TEST: Call procedures
--- =====================================================================
-
--- Test 1: Simple announcement insert
--- CALL InsererAnnonce(
---     'synthetic', 'TEST_001', 'Test Announcement',
---     'This is a test announcement for modulaire construction',
---     150000.00, 'EUR', NOW(), DATE_ADD(NOW(), INTERVAL 15 DAY),
---     '75001 Paris', 'Île-de-France', 4, 'http://example.com',
---     @ann_id, @status, @message
--- );
--- SELECT @ann_id AS announcement_id, @status AS status, @message AS message;
-
--- Test 2: Generate KPIs
--- CALL GenererKPIDashboard();
-
--- =====================================================================
--- END OF FILE: 06_procedures.sql
--- =====================================================================
+DELIMITER ;

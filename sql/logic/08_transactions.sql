@@ -1,164 +1,213 @@
 -- =====================================================================
--- UNITEE Phase 3 - Transaction Handling Tests
--- File: 08_transactions.sql
--- Purpose: Test transaction rollback, commit, and error handling
+-- UNITEE - Gestion des Transactions
+-- Fichier : 08_transactions.sql
+-- Objet : Démonstration COMMIT / ROLLBACK / SAVEPOINT sur le schéma
+--         de veille marchés publics
+--
+-- Noms de tables conformes à 02_create_tables.sql :
+--   sources, acheteurs, mots_cles, annonces, annonce_mot_cle,
+--   qualification_scores, notifications, log_technique,
+--   log_metier, historique_annonces, log_sauvegardes
 -- =====================================================================
 
 USE unitee;
 
 -- =====================================================================
--- TEST 1: Successful transaction - Insert multiple announcements
--- Expected: All inserts committed successfully
+-- SCÉNARIO 1 : Transaction complète — insertion d'une annonce valide
+-- Attendu : COMMIT — les deux annonces sont persistées
 -- =====================================================================
 
--- TEST_1_COMMIT.sql
-SELECT '[TEST 1] Starting successful transaction test...' AS test_step;
+SELECT '[SCÉNARIO 1] Démarrage transaction avec COMMIT...' AS etape;
 
 START TRANSACTION;
 
--- Insert first announcement
-INSERT INTO announcements (
-    source_id, buyer_id, external_id, title, description,
-    estimated_amount, currency, publication_date, response_deadline,
-    location, region, source_link, status, imported_at, updated_at
+-- Insertion annonce 1
+INSERT INTO annonces (
+    source_id, acheteur_id, id_externe,
+    titre, description,
+    montant_estime, devise,
+    date_publication, date_limite_reponse,
+    localisation, region, lien_source,
+    statut
 ) VALUES (
-    3, 4, 'TRANS_TEST_001', 'First Test Announcement', 'Test description for transaction test',
-    150000.00, 'EUR', NOW(), DATE_ADD(NOW(), INTERVAL 15 DAY),
-    '75001 Paris', 'Île-de-France', 'http://transaction-test-1.com', 'NEW', NOW(), NOW()
+    1, 1, 'TRANS_TEST_001',
+    'Construction modulaire école primaire Rennes',
+    'Fourniture et installation d''un bâtiment préfabriqué de 6 classes',
+    280000.00, 'EUR',
+    NOW(), DATE_ADD(NOW(), INTERVAL 21 DAY),
+    '35000 Rennes', 'Bretagne',
+    'http://boamp.fr/trans-test-001',
+    'NEW'
 );
-SET @first_id = LAST_INSERT_ID();
+SET @id_annonce_1 = LAST_INSERT_ID();
 
--- Insert second announcement
-INSERT INTO announcements (
-    source_id, buyer_id, external_id, title, description,
-    estimated_amount, currency, publication_date, response_deadline,
-    location, region, source_link, status, imported_at, updated_at
+-- Insertion annonce 2
+INSERT INTO annonces (
+    source_id, acheteur_id, id_externe,
+    titre, description,
+    montant_estime, devise,
+    date_publication, date_limite_reponse,
+    localisation, region, lien_source,
+    statut
 ) VALUES (
-    3, 4, 'TRANS_TEST_002', 'Second Test Announcement', 'Another test announcement',
-    200000.00, 'EUR', NOW(), DATE_ADD(NOW(), INTERVAL 20 DAY),
-    '75002 Paris', 'Île-de-France', 'http://transaction-test-2.com', 'NEW', NOW(), NOW()
+    2, 2, 'TRANS_TEST_002',
+    'Base vie modulaire chantier A89 Clermont',
+    'Location longue durée d''une base vie assemblage rapide 120 personnes',
+    95000.00, 'EUR',
+    NOW(), DATE_ADD(NOW(), INTERVAL 14 DAY),
+    '63000 Clermont-Ferrand', 'Auvergne-Rhône-Alpes',
+    'http://boamp.fr/trans-test-002',
+    'NEW'
 );
-SET @second_id = LAST_INSERT_ID();
+SET @id_annonce_2 = LAST_INSERT_ID();
 
 COMMIT;
 
-SELECT CONCAT('[TEST 1] COMMITTED - Inserted announcements: ', @first_id, ', ', @second_id) AS test_result;
+SELECT CONCAT('[SCÉNARIO 1] COMMIT OK — annonces insérées : ', @id_annonce_1, ', ', @id_annonce_2) AS resultat;
 
 -- =====================================================================
--- TEST 2: Transaction rollback on error
--- Expected: Insert fails and transaction is rolled back
+-- SCÉNARIO 2 : Rollback sur erreur — titre NULL rejeté par trigger
+-- Attendu : ROLLBACK — aucune ligne insérée
 -- =====================================================================
 
-SELECT '[TEST 2] Starting transaction rollback test...' AS test_step;
-
-SET @error_occurred = 0;
-START TRANSACTION;
-
--- Try to insert with NULL title (should fail due to trigger validation)
-BEGIN
-  INSERT INTO announcements (
-      source_id, buyer_id, external_id, title, description,
-      estimated_amount, currency, publication_date, response_deadline,
-      location, region, source_link, status, imported_at, updated_at
-  ) VALUES (
-      3, 4, 'TRANS_TEST_ERROR', NULL, 'This should fail',
-      100000.00, 'EUR', NOW(), DATE_ADD(NOW(), INTERVAL 10 DAY),
-      '75003 Paris', 'Île-de-France', 'http://transaction-test-error.com', 'NEW', NOW(), NOW()
-  );
-  ROLLBACK;
-  SELECT '[TEST 2] ROLLED BACK - NULL title was rejected' AS test_result;
-END;
-
--- =====================================================================
--- TEST 3: Verify that rollbacked data was not inserted
--- Expected: Transaction 2's failed insert is not in database
--- =====================================================================
-
-SELECT '[TEST 3] Verifying rollback integrity...' AS test_step;
-
-SELECT COUNT(*) as failed_inserts_count FROM announcements 
-WHERE external_id = 'TRANS_TEST_ERROR';
-
--- =====================================================================
--- TEST 4: Partial failure with savepoint
--- Expected: Some inserts succeed, some fail, depending on savepoint handling
--- =====================================================================
-
-SELECT '[TEST 4] Testing savepoint behavior...' AS test_step;
+SELECT '[SCÉNARIO 2] Démarrage transaction avec ROLLBACK attendu...' AS etape;
 
 START TRANSACTION;
 
--- Savepoint 1: Insert valid data
+-- Cette insertion doit être rejetée par le trigger avant_insert_annonce
+-- (titre NULL = violation contrainte métier)
+INSERT INTO annonces (
+    source_id, acheteur_id, id_externe,
+    titre, description,
+    montant_estime, devise,
+    date_publication, date_limite_reponse,
+    localisation, region, lien_source,
+    statut
+) VALUES (
+    1, 1, 'TRANS_TEST_ERREUR',
+    NULL,  -- ← titre NULL : rejeté par trigger BEFORE INSERT
+    'Description sans titre',
+    50000.00, 'EUR',
+    NOW(), DATE_ADD(NOW(), INTERVAL 10 DAY),
+    '75001 Paris', 'Île-de-France',
+    'http://test-erreur.com',
+    'NEW'
+);
+
+-- Si on arrive ici (MySQL sans mode strict) : rollback manuel
+ROLLBACK;
+
+SELECT '[SCÉNARIO 2] ROLLBACK exécuté — aucune donnée invalide persistée' AS resultat;
+
+-- =====================================================================
+-- SCÉNARIO 3 : Vérification intégrité après rollback
+-- Attendu : 0 ligne avec id_externe = 'TRANS_TEST_ERREUR'
+-- =====================================================================
+
+SELECT '[SCÉNARIO 3] Vérification intégrité post-rollback...' AS etape;
+
+SELECT
+    COUNT(*) AS insertions_invalides_detectees,
+    CASE
+        WHEN COUNT(*) = 0 THEN 'PASS — rollback efficace'
+        ELSE 'FAIL — données invalides présentes'
+    END AS resultat
+FROM annonces
+WHERE id_externe = 'TRANS_TEST_ERREUR';
+
+-- =====================================================================
+-- SCÉNARIO 4 : SAVEPOINT — insertion partielle avec récupération
+-- Attendu : sp1 conservé, sp2 remplacé par insertion valide, COMMIT final
+-- =====================================================================
+
+SELECT '[SCÉNARIO 4] Démarrage transaction avec SAVEPOINT...' AS etape;
+
+START TRANSACTION;
+
+-- SAVEPOINT 1 : données valides
 SAVEPOINT sp1;
-INSERT INTO announcements (
-    source_id, buyer_id, external_id, title, description,
-    estimated_amount, currency, publication_date, response_deadline,
-    location, region, source_link, status, imported_at, updated_at
+INSERT INTO annonces (
+    source_id, acheteur_id, id_externe,
+    titre, montant_estime, devise,
+    date_publication, date_limite_reponse,
+    region, statut
 ) VALUES (
-    3, 4, 'TRANS_SAVEPOINT_1', 'Savepoint Test 1', 'Valid data',
-    180000.00, 'EUR', NOW(), DATE_ADD(NOW(), INTERVAL 12 DAY),
-    '75004 Paris', 'Île-de-France', 'http://transaction-sp1.com', 'NEW', NOW(), NOW()
+    1, 3, 'TRANS_SP_001',
+    'Bâtiment en kit gymnase municipal Bordeaux',
+    195000.00, 'EUR',
+    NOW(), DATE_ADD(NOW(), INTERVAL 18 DAY),
+    'Nouvelle-Aquitaine', 'NEW'
 );
+SET @id_sp1 = LAST_INSERT_ID();
 
--- Attempt to insert with invalid amount (will be caught by trigger)
+-- SAVEPOINT 2 : tentative montant négatif (invalide)
 SAVEPOINT sp2;
--- This insert would fail, but we'll continue
-INSERT INTO announcements (
-    source_id, buyer_id, external_id, title, description,
-    estimated_amount, currency, publication_date, response_deadline,
-    location, region, source_link, status, imported_at, updated_at
+INSERT INTO annonces (
+    source_id, acheteur_id, id_externe,
+    titre, montant_estime, devise,
+    date_publication, date_limite_reponse,
+    region, statut
 ) VALUES (
-    3, 4, 'TRANS_SAVEPOINT_2', 'Savepoint Test 2', 'Valid data',
-    -50000.00, 'EUR', NOW(), DATE_ADD(NOW(), INTERVAL 12 DAY),
-    '75005 Paris', 'Île-de-France', 'http://transaction-sp2.com', 'NEW', NOW(), NOW()
+    1, 3, 'TRANS_SP_002',
+    'Classe temporaire préfabriquée Strasbourg',
+    -50000.00, 'EUR',  -- ← montant négatif : rejeté par contrainte ck_montant_positif
+    NOW(), DATE_ADD(NOW(), INTERVAL 12 DAY),
+    'Grand Est', 'NEW'
 );
 
--- Rollback to sp2 (undo the failed insert)
-ROLLBACK TO sp2;
+-- Retour au savepoint 2 pour annuler l'insertion invalide
+ROLLBACK TO SAVEPOINT sp2;
 
--- Insert replacement valid data
-INSERT INTO announcements (
-    source_id, buyer_id, external_id, title, description,
-    estimated_amount, currency, publication_date, response_deadline,
-    location, region, source_link, status, imported_at, updated_at
+-- Remplacement par données valides
+INSERT INTO annonces (
+    source_id, acheteur_id, id_externe,
+    titre, montant_estime, devise,
+    date_publication, date_limite_reponse,
+    region, statut
 ) VALUES (
-    3, 4, 'TRANS_SAVEPOINT_2_RETRY', 'Savepoint Test 2 Retry', 'Replacement valid data',
-    190000.00, 'EUR', NOW(), DATE_ADD(NOW(), INTERVAL 12 DAY),
-    '75006 Paris', 'Île-de-France', 'http://transaction-sp2-retry.com', 'NEW', NOW(), NOW()
+    1, 3, 'TRANS_SP_002_CORR',
+    'Classe temporaire préfabriquée Strasbourg (corrigé)',
+    78000.00, 'EUR',
+    NOW(), DATE_ADD(NOW(), INTERVAL 12 DAY),
+    'Grand Est', 'NEW'
 );
+SET @id_sp2_corr = LAST_INSERT_ID();
 
 COMMIT;
 
-SELECT '[TEST 4] COMMITTED - Savepoint test completed' AS test_result;
+SELECT CONCAT('[SCÉNARIO 4] COMMIT OK — sp1=', @id_sp1, ', sp2_corr=', @id_sp2_corr) AS resultat;
 
 -- =====================================================================
--- TEST 5: Verify transaction isolation
--- Expected: Multiple transactions don't interfere with each other
+-- SCÉNARIO 5 : Transaction sur log_technique (table indépendante)
+-- Illustre l'utilisation de START TRANSACTION sur une table sans FK
 -- =====================================================================
 
-SELECT '[TEST 5] Transaction isolation verified' AS test_result;
+SELECT '[SCÉNARIO 5] Transaction sur log_technique...' AS etape;
+
+START TRANSACTION;
+
+INSERT INTO log_technique (type_operation, source_operation, status, message, duree_ms)
+VALUES ('IMPORT_API_DATA_GOUV', 'transaction_test', 'OK', 'Import test scénario 5 réussi', 42);
+
+INSERT INTO log_technique (type_operation, source_operation, status, message, duree_ms)
+VALUES ('SCORE_CALCULATION', 'transaction_test', 'OK', 'Scoring lot test scénario 5', 18);
+
+COMMIT;
+
+SELECT '[SCÉNARIO 5] COMMIT OK — 2 logs techniques persistés' AS resultat;
 
 -- =====================================================================
--- TEST 6: Deadlock handling (if applicable)
--- This would require concurrent connections, skipped in single-connection test
+-- RÉSUMÉ
 -- =====================================================================
 
-SELECT '[TEST 6] Deadlock testing requires concurrent connections (SKIPPED)' AS test_result;
+SELECT
+    'BILAN TRANSACTIONS' AS titre,
+    'Scénario 1 : COMMIT multiple annonces valides'   AS s1,
+    'Scénario 2 : ROLLBACK annonce invalide (NULL)'   AS s2,
+    'Scénario 3 : Vérification intégrité post-ROLLBACK' AS s3,
+    'Scénario 4 : SAVEPOINT + correction partielle'   AS s4,
+    'Scénario 5 : Transaction table indépendante'     AS s5;
 
 -- =====================================================================
--- SUMMARY
--- =====================================================================
-
-SELECT 
-    '[SUMMARY] Transaction Tests Complete:' AS summary,
-    '  - Test 1: Commit successful inserts' AS test1,
-    '  - Test 2: Rollback on error' AS test2,
-    '  - Test 3: Verify rollback integrity' AS test3,
-    '  - Test 4: Savepoint handling' AS test4,
-    '  - Test 5: Transaction isolation' AS test5,
-    '  - Test 6: Deadlock handling (SKIPPED)' AS test6,
-    '  SUCCESS: All transaction tests completed!' AS final_status;
-
--- =====================================================================
--- END OF FILE: 08_transactions.sql
+-- FIN FICHIER : 08_transactions.sql
 -- =====================================================================
