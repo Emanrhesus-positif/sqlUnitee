@@ -1,290 +1,155 @@
 @startuml MLD_Unitee
-' MLD - Modèle Logique de Données
-' Projet : UNITEE - Veille Automatisée Marchés Publics
-' Date : 8 avril 2026
-'
-' Vue logique : tables, colonnes, types, clés
-' SANS syntaxe SQL précise
+!theme plain
 
-title MLD - UNITEE Veille Automatisée Marchés Publics
-note bottom : Modèle Logique - Structure relationnelle
+title MLD - UNITEE Logical Data Model
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 1. TABLE SOURCE
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity sources {
-  * **id_source** : INT [PK]
+entity SOURCES {
+  *source_id : INT
   --
-  nom_source : VARCHAR(100) [UNIQUE]
+  source_name : VARCHAR(100)
   description : TEXT
-  url_base : VARCHAR(500)
-  type_source : VARCHAR(50) (API/SCRAPING/FLUX_RSS)
-  actif : BOOLEAN
-  date_creation : DATETIME
+  api_base_url : VARCHAR(500)
+  source_type : VARCHAR(50)
+  active : BOOLEAN
+  created_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 2. TABLE ACHETEUR
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity acheteurs {
-  * **id_acheteur** : INT [PK]
+entity BUYERS {
+  *buyer_id : INT
   --
-  nom_acheteur : VARCHAR(255) [UNIQUE]
-  type_acheteur : VARCHAR(100) (COLLECTIVITE/ETAT/ENTREPRISE_PUBLIQUE)
+  buyer_name : VARCHAR(255)
+  buyer_type : VARCHAR(100)
   region : VARCHAR(100)
   contact_email : VARCHAR(255)
   contact_phone : VARCHAR(20)
-  date_creation : DATETIME
+  created_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 3. TABLE MOT_CLE
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity mots_cles {
-  * **id_mot_cle** : INT [PK]
+entity KEYWORDS {
+  *keyword_id : INT
   --
-  mot_cle : VARCHAR(100) [UNIQUE]
-  categorie : VARCHAR(50) (PRIMARY/SECONDARY/EXTRACTED)
-  pertinence : INT (0-100)
-  date_creation : DATETIME
+  keyword_text : VARCHAR(100)
+  category : VARCHAR(50)
+  created_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 4. TABLE PRINCIPALE : ANNONCES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity annonces {
-  * **id_annonce** : INT [PK]
-  * **source_id** : INT [FK → sources]
-  * **acheteur_id** : INT [FK → acheteurs]
+entity ANNOUNCEMENTS {
+  *announcement_id : BIGINT
+  #source_id : INT
+  #buyer_id : INT
   --
-  id_externe : VARCHAR(100) [UNIQUE COMPOSITE: (source_id, id_externe)]
-  titre : VARCHAR(500) [NOT NULL]
-  resume : TEXT
+  external_id : VARCHAR(100)
+  title : VARCHAR(500)
   description : LONGTEXT
-  montant_estime : DECIMAL(15,2)
-  devise : VARCHAR(3) (EUR, etc.)
-  date_publication : DATETIME [INDEX]
-  date_limite_reponse : DATETIME [INDEX]
-  localisation : VARCHAR(255)
-  region : VARCHAR(100) [INDEX]
-  lien_source : TEXT [UNIQUE]
-  statut : ENUM (NEW/QUALIFIED/IGNORED/RESPONDED)
-  timestamp_import : DATETIME [DEFAULT NOW()]
-  timestamp_maj : DATETIME [ON UPDATE CURRENT_TIMESTAMP]
+  estimated_amount : DECIMAL
+  currency : VARCHAR(3)
+  publication_date : DATETIME
+  response_deadline : DATETIME
+  location : VARCHAR(255)
+  region : VARCHAR(100)
+  source_link : TEXT
+  status : ENUM
+  imported_at : DATETIME
+  updated_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 5. TABLE LIAISON N:N : ANNONCE_MOT_CLE
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity annonce_mot_cle {
-  * **annonce_id** : INT [PK, FK → annonces]
-  * **mot_cle_id** : INT [PK, FK → mots_cles]
+entity ANNOUNCEMENT_KEYWORDS {
+  *announcement_id : BIGINT
+  *keyword_id : INT
   --
-  pertinence_score : INT (0-100)
-  type_extraction : VARCHAR(50) (TF-IDF/REGEX/MANUAL)
-  date_extraction : DATETIME
+  relevance_score : INT
+  extraction_type : VARCHAR(50)
+  extracted_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 6. TABLE QUALIFICATION_SCORES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity qualification_scores {
-  * **id_score** : INT [PK]
-  * **annonce_id** : INT [FK → annonces, UNIQUE]
+entity QUALIFICATION_SCORES {
+  *score_id : INT
+  #announcement_id : BIGINT
   --
-  score_pertinence : INT (0-100) [INDEX]
-  niveau_alerte : ENUM (CRITIQUE/URGENT/NORMAL/IGNORE)
-  raison_scoring : TEXT
-  bonus_keywords : INT
-  bonus_montant : INT
-  bonus_deadline : INT
-  bonus_acheteur : INT
-  date_calcul : DATETIME
-  date_maj : DATETIME
+  pertinence_score : INT
+  alert_level : VARCHAR(50)
+  scoring_reason : TEXT
+  keyword_bonus : INT
+  amount_bonus : INT
+  deadline_bonus : INT
+  buyer_bonus : INT
+  calculated_at : DATETIME
+  updated_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 7. TABLE NOTIFICATIONS
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity notifications {
-  * **id_notification** : INT [PK]
-  * **annonce_id** : INT [FK → annonces]
+entity NOTIFICATIONS {
+  *notification_id : BIGINT
+  #announcement_id : BIGINT
   --
-  type_alerte : VARCHAR(50) (SCORE_ELEVE/DEADLINE_PROCHE/NOUVEL_APPEL)
-  statut : ENUM (NEW/SENT/ACKNOWLEDGED/ARCHIVED)
-  priorite : INT (1-5, 1=critique)
-  date_creation : DATETIME
-  date_envoi : DATETIME
-  date_acknowledge : DATETIME
-  message : TEXT
+  alert_type : VARCHAR(50)
+  status : VARCHAR(50)
+  priority : INT
+  created_at : DATETIME
+  sent_at : DATETIME
+  acknowledged_at : DATETIME
+  message : LONGTEXT
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 8. TABLE LOG_TECHNIQUE
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity log_technique {
-  * **id_log_tech** : INT [PK]
+entity TECHNICAL_LOGS {
+  *log_id : BIGINT
   --
-  timestamp : DATETIME [INDEX]
-  type_operation : VARCHAR(100) (API_CALL/TRANSFORM/VALIDATE/INSERT/DELETE)
-  source_operation : VARCHAR(100)
-  status : ENUM (OK/WARNING/ERREUR)
+  timestamp : DATETIME
+  operation_type : VARCHAR(100)
+  operation_source : VARCHAR(100)
+  status : VARCHAR(50)
   message : TEXT
   details_json : JSON
-  duree_ms : INT
+  duration_ms : INT
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 9. TABLE LOG_METIER
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity log_metier {
-  * **id_log_metier** : INT [PK]
-  * **annonce_id** : INT [FK → annonces]
+entity BUSINESS_LOGS {
+  *log_id : BIGINT
+  #announcement_id : BIGINT
   --
-  timestamp : DATETIME [INDEX]
-  type_operation : VARCHAR(100) (CREEE/MODIFIEE/SUPPRIMEE/QUALIFIEE)
-  utilisateur : VARCHAR(255)
+  timestamp : DATETIME
+  operation_type : VARCHAR(100)
+  user : VARCHAR(255)
   description : TEXT
-  avant_state : JSON
-  apres_state : JSON
+  before_state : JSON
+  after_state : JSON
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 10. TABLE HISTORIQUE_ANNONCES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity historique_annonces {
-  * **id_historique** : INT [PK]
-  * **annonce_id** : INT [FK → annonces, INDEX]
+entity ANNOUNCEMENT_HISTORY {
+  *history_id : BIGINT
+  #announcement_id : BIGINT
   --
-  timestamp : DATETIME [INDEX]
-  type_modification : VARCHAR(100)
-  colonne_modifiee : VARCHAR(100)
-  valeur_ancienne : TEXT
-  valeur_nouvelle : TEXT
+  timestamp : DATETIME
+  modification_type : VARCHAR(100)
+  modified_column : VARCHAR(100)
+  old_value : TEXT
+  new_value : TEXT
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 11. TABLE LOG_SAUVEGARDES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-entity log_sauvegardes {
-  * **id_log_sauvegarde** : INT [PK]
+entity BACKUP_LOGS {
+  *backup_id : INT
   --
-  timestamp : DATETIME [INDEX]
-  type_backup : VARCHAR(50) (FULL/INCREMENTAL)
-  fichier : VARCHAR(500)
-  status : ENUM (OK/ERREUR)
-  nb_bytes : BIGINT
-  duree_secondes : INT
-  message_erreur : TEXT
+  timestamp : DATETIME
+  backup_type : VARCHAR(50)
+  backup_file : VARCHAR(500)
+  status : VARCHAR(50)
+  file_size : BIGINT
+  duration_seconds : INT
+  error_message : TEXT
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 12. RELATIONS
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-sources ||--o{ annonces : " id_source"
-acheteurs ||--o{ annonces : " id_acheteur"
-annonces ||--o{ qualification_scores : " id_annonce (1:1)"
-annonces ||--o{ notifications : " id_annonce (1:N)"
-annonces ||--o{ log_metier : " id_annonce (1:N)"
-annonces ||--o{ historique_annonces : " id_annonce (1:N)"
-annonces }o--|| annonce_mot_cle : " id_annonce"
-mots_cles ||--o{ annonce_mot_cle : " id_mot_cle"
-
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 13. CONTRAINTES & INDEXES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-note right of annonces
-  **Contraintes clés** :
-  
-  • (source_id, id_externe) UNIQUE
-    → Détecte doublons
-  
-  • acheteur_id NOT NULL
-  
-  • titre NOT NULL, LEN > 5
-  
-  • date_limite_reponse >= date_publication
-  
-  **Indexes** :
-  • INDEX source_id
-  • INDEX acheteur_id
-  • INDEX date_publication
-  • INDEX date_limite_reponse
-  • INDEX region
-  • INDEX statut
-  • UNIQUE (source_id, id_externe)
-end note
-
-note right of qualification_scores
-  **Relation 1:1** avec annonces
-  
-  Recalculée via trigger
-  après UPDATE annonce
-  
-  Score = fonction complexe
-  (voir fichier LOGIC.md)
-end note
-
-note right of log_technique
-  **Audit technique** :
-  - Erreurs API
-  - Timeouts
-  - Problèmes INSERT/DELETE
-  
-  **Retention** : 90 jours
-  (archivage après)
-end note
-
-note right of log_metier
-  **Audit métier** :
-  - Qualifications
-  - Modifications
-  - Suppressions
-  
-  **Retention** : Historique complet
-end note
-
-note right of annonce_mot_cle
-  **Relation N:N**
-  
-  Une annonce peut avoir
-  plusieurs mots-clés
-  
-  Un mot-clé peut qualifier
-  plusieurs annonces
-end note
-
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' 14. STATISTIQUES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+SOURCES ||--o{ ANNOUNCEMENTS
+BUYERS ||--o{ ANNOUNCEMENTS
+ANNOUNCEMENTS }o--|| ANNOUNCEMENT_KEYWORDS
+KEYWORDS ||--o{ ANNOUNCEMENT_KEYWORDS
+ANNOUNCEMENTS ||--|| QUALIFICATION_SCORES
+ANNOUNCEMENTS ||--o{ NOTIFICATIONS
+ANNOUNCEMENTS ||--o{ BUSINESS_LOGS
+ANNOUNCEMENTS ||--o{ ANNOUNCEMENT_HISTORY
 
 note bottom
-  **Modèle Logique - Statistiques** :
-  
-  - **11 tables** (3 métier + 1 liaison + 4 logs + 3 support)
-  - **Clé composite** : (source_id, id_externe) sur annonces
-  - **Normalisation** : 3FN (BCNF)
-  - **Index** : ~10 stratégiques
-  - **Contraintes** : FK, UNIQUE, CHECK, NOT NULL
-  - **Audit complet** : 3 tables log + 1 historique
-  
-  **Capacité estimée** :
-  - 100-500 annonces/jour
-  - 1-2 ans de données (rétention)
-  - ~2-5 GB disque
+  Legend:
+  * = Primary Key
+  # = Foreign Key
 end note
 
 @enduml

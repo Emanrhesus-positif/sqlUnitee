@@ -1,372 +1,158 @@
 @startuml PHYSIQUE_Unitee
-' DIAGRAMME PHYSIQUE
-' Projet : UNITEE - Veille Automatisée Marchés Publics
-' Date : 8 avril 2026
-'
-' Vue physique : Syntaxe SQL, types MySQL précis, contraintes
-' Prêt pour CREATE TABLE direct
+!theme plain
 
-title DIAGRAMME PHYSIQUE - UNITEE (MySQL 8.0)
-note bottom : Modèle Physique - Syntaxe MySQL 8.0+
+title PHYSIQUE - UNITEE MySQL 8.0 Physical Schema
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' CONFIGURATION GLOBALE
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-note top
-  **Configuration MySQL** :
-  - Engine: InnoDB
-  - Charset: utf8mb4
-  - Collation: utf8mb4_unicode_ci
-  - SQL Mode: STRICT_TRANS_TABLES
-end note
-
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 1 : SOURCES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object sources {
-  id_source INT PRIMARY KEY AUTO_INCREMENT
+entity sources {
+  *id_source : INT PK
   --
-  nom_source VARCHAR(100) UNIQUE NOT NULL
-  description TEXT
-  url_base VARCHAR(500)
-  type_source ENUM('API','SCRAPING','FLUX_RSS') DEFAULT 'API'
-  actif BOOLEAN DEFAULT true
-  date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+  source_name : VARCHAR(100) UNIQUE
+  description : TEXT
+  url_base : VARCHAR(500)
+  type_source : ENUM
+  active : BOOLEAN
+  created_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 2 : ACHETEURS
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object acheteurs {
-  id_acheteur INT PRIMARY KEY AUTO_INCREMENT
+entity buyers {
+  *id_buyer : INT PK
   --
-  nom_acheteur VARCHAR(255) UNIQUE NOT NULL
-  type_acheteur ENUM('COLLECTIVITE','ETAT','ENTREPRISE_PUBLIQUE') 
-  region VARCHAR(100)
-  contact_email VARCHAR(255)
-  contact_phone VARCHAR(20)
-  date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
-  
-  INDEX idx_region (region)
-  INDEX idx_type (type_acheteur)
+  buyer_name : VARCHAR(255) UNIQUE
+  buyer_type : ENUM
+  region : VARCHAR(100)
+  contact_email : VARCHAR(255)
+  contact_phone : VARCHAR(20)
+  created_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 3 : MOTS_CLES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object mots_cles {
-  id_mot_cle INT PRIMARY KEY AUTO_INCREMENT
+entity keywords {
+  *id_keyword : INT PK
   --
-  mot_cle VARCHAR(100) UNIQUE NOT NULL
-  categorie ENUM('PRIMARY','SECONDARY','EXTRACTED') DEFAULT 'EXTRACTED'
-  pertinence INT CHECK (pertinence >= 0 AND pertinence <= 100) DEFAULT 50
-  date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+  keyword_text : VARCHAR(100) UNIQUE
+  category : ENUM
+  relevance_score : INT
+  created_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 4 : ANNONCES (PRINCIPALE)
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object annonces {
-  id_annonce BIGINT PRIMARY KEY AUTO_INCREMENT
+entity announcements {
+  *id_announcement : BIGINT PK
+  #id_source : INT FK
+  #id_buyer : INT FK
   --
-  source_id INT NOT NULL
-  acheteur_id INT NOT NULL
-  
-  id_externe VARCHAR(100) NOT NULL
-  titre VARCHAR(500) NOT NULL CHECK (CHAR_LENGTH(titre) > 5)
-  resume TEXT
-  description LONGTEXT
-  montant_estime DECIMAL(15,2) CHECK (montant_estime >= 0)
-  devise VARCHAR(3) DEFAULT 'EUR'
-  
-  date_publication DATETIME NOT NULL
-  date_limite_reponse DATETIME NOT NULL
-  localisation VARCHAR(255)
-  region VARCHAR(100)
-  lien_source TEXT UNIQUE
-  
-  statut ENUM('NEW','QUALIFIED','IGNORED','RESPONDED') DEFAULT 'NEW'
-  
-  timestamp_import DATETIME DEFAULT CURRENT_TIMESTAMP
-  timestamp_maj DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-  
-  CONSTRAINT fk_annonces_source 
-    FOREIGN KEY (source_id) REFERENCES sources(id_source)
-    ON DELETE RESTRICT ON UPDATE CASCADE
-  
-  CONSTRAINT fk_annonces_acheteur 
-    FOREIGN KEY (acheteur_id) REFERENCES acheteurs(id_acheteur)
-    ON DELETE RESTRICT ON UPDATE CASCADE
-  
-  CONSTRAINT uk_annonce_doublon 
-    UNIQUE (source_id, id_externe)
-  
-  CONSTRAINT ck_dates_annonce 
-    CHECK (date_publication <= date_limite_reponse)
-  
-  INDEX idx_source_id (source_id)
-  INDEX idx_acheteur_id (acheteur_id)
-  INDEX idx_date_pub (date_publication)
-  INDEX idx_date_deadline (date_limite_reponse)
-  INDEX idx_region (region)
-  INDEX idx_statut (statut)
-  INDEX idx_montant (montant_estime)
+  external_id : VARCHAR(100)
+  title : VARCHAR(500)
+  description : LONGTEXT
+  estimated_amount : DECIMAL(15,2)
+  currency : VARCHAR(3)
+  publication_date : DATETIME
+  response_deadline : DATETIME
+  location : VARCHAR(255)
+  region : VARCHAR(100)
+  source_link : TEXT UNIQUE
+  status : ENUM
+  imported_at : DATETIME
+  updated_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 5 : ANNONCE_MOT_CLE (LIAISON N:N)
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object annonce_mot_cle {
-  annonce_id BIGINT NOT NULL
-  mot_cle_id INT NOT NULL
+entity announcement_keywords {
+  *id_announcement : BIGINT PK
+  *id_keyword : INT PK
   --
-  pertinence_score INT CHECK (pertinence_score >= 0 AND pertinence_score <= 100) DEFAULT 50
-  type_extraction ENUM('TF-IDF','REGEX','MANUAL','LLM') DEFAULT 'REGEX'
-  date_extraction DATETIME DEFAULT CURRENT_TIMESTAMP
-  
-  PRIMARY KEY (annonce_id, mot_cle_id)
-  
-  CONSTRAINT fk_amc_annonce 
-    FOREIGN KEY (annonce_id) REFERENCES annonces(id_annonce)
-    ON DELETE CASCADE ON UPDATE CASCADE
-  
-  CONSTRAINT fk_amc_mot_cle 
-    FOREIGN KEY (mot_cle_id) REFERENCES mots_cles(id_mot_cle)
-    ON DELETE RESTRICT ON UPDATE CASCADE
-  
-  INDEX idx_mot_cle_id (mot_cle_id)
-  INDEX idx_pertinence (pertinence_score)
+  relevance_score : INT
+  extraction_type : ENUM
+  extracted_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 6 : QUALIFICATION_SCORES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object qualification_scores {
-  id_score INT PRIMARY KEY AUTO_INCREMENT
-  annonce_id BIGINT UNIQUE NOT NULL
+entity qualification_scores {
+  *id_score : INT PK
+  #id_announcement : BIGINT UNIQUE FK
   --
-  score_pertinence INT NOT NULL CHECK (score_pertinence >= 0 AND score_pertinence <= 100)
-  niveau_alerte ENUM('CRITIQUE','URGENT','NORMAL','IGNORE') DEFAULT 'NORMAL'
-  
-  raison_scoring TEXT
-  bonus_keywords INT DEFAULT 0
-  bonus_montant INT DEFAULT 0
-  bonus_deadline INT DEFAULT 0
-  bonus_acheteur INT DEFAULT 0
-  
-  date_calcul DATETIME DEFAULT CURRENT_TIMESTAMP
-  date_maj DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-  
-  CONSTRAINT fk_score_annonce 
-    FOREIGN KEY (annonce_id) REFERENCES annonces(id_annonce)
-    ON DELETE CASCADE ON UPDATE CASCADE
-  
-  INDEX idx_score_pertinence (score_pertinence)
-  INDEX idx_niveau_alerte (niveau_alerte)
+  pertinence_score : INT
+  alert_level : ENUM
+  scoring_reason : TEXT
+  keyword_bonus : INT
+  amount_bonus : INT
+  deadline_bonus : INT
+  buyer_bonus : INT
+  calculated_at : DATETIME
+  updated_at : DATETIME
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 7 : NOTIFICATIONS
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object notifications {
-  id_notification BIGINT PRIMARY KEY AUTO_INCREMENT
-  annonce_id BIGINT NOT NULL
+entity notifications {
+  *id_notification : BIGINT PK
+  #id_announcement : BIGINT FK
   --
-  type_alerte VARCHAR(50) NOT NULL
-  statut ENUM('NEW','SENT','ACKNOWLEDGED','ARCHIVED') DEFAULT 'NEW'
-  priorite INT DEFAULT 3 CHECK (priorite >= 1 AND priorite <= 5)
-  
-  date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
-  date_envoi DATETIME
-  date_acknowledge DATETIME
-  message LONGTEXT
-  
-  CONSTRAINT fk_notif_annonce 
-    FOREIGN KEY (annonce_id) REFERENCES annonces(id_annonce)
-    ON DELETE CASCADE ON UPDATE CASCADE
-  
-  INDEX idx_annonce_id (annonce_id)
-  INDEX idx_statut (statut)
-  INDEX idx_date_creation (date_creation)
-  INDEX idx_priorite (priorite)
+  alert_type : VARCHAR(50)
+  status : ENUM
+  priority : INT
+  created_at : DATETIME
+  sent_at : DATETIME
+  acknowledged_at : DATETIME
+  message : LONGTEXT
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 8 : LOG_TECHNIQUE
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object log_technique {
-  id_log_tech BIGINT PRIMARY KEY AUTO_INCREMENT
+entity technical_logs {
+  *id_log : BIGINT PK
   --
-  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-  type_operation VARCHAR(100) NOT NULL
-  source_operation VARCHAR(100)
-  status ENUM('OK','WARNING','ERREUR') DEFAULT 'OK'
-  
-  message TEXT
-  details_json JSON
-  duree_ms INT
-  
-  INDEX idx_timestamp (timestamp)
-  INDEX idx_type_operation (type_operation)
-  INDEX idx_status (status)
+  timestamp : DATETIME
+  operation_type : VARCHAR(100)
+  operation_source : VARCHAR(100)
+  status : ENUM
+  message : TEXT
+  details_json : JSON
+  duration_ms : INT
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 9 : LOG_METIER
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object log_metier {
-  id_log_metier BIGINT PRIMARY KEY AUTO_INCREMENT
-  annonce_id BIGINT NOT NULL
+entity business_logs {
+  *id_log : BIGINT PK
+  #id_announcement : BIGINT FK
   --
-  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-  type_operation VARCHAR(100) NOT NULL
-  utilisateur VARCHAR(255)
-  description TEXT
-  
-  avant_state JSON
-  apres_state JSON
-  
-  CONSTRAINT fk_logmetier_annonce 
-    FOREIGN KEY (annonce_id) REFERENCES annonces(id_annonce)
-    ON DELETE CASCADE ON UPDATE CASCADE
-  
-  INDEX idx_annonce_id (annonce_id)
-  INDEX idx_timestamp (timestamp)
-  INDEX idx_type_operation (type_operation)
+  timestamp : DATETIME
+  operation_type : VARCHAR(100)
+  user : VARCHAR(255)
+  description : TEXT
+  before_state : JSON
+  after_state : JSON
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 10 : HISTORIQUE_ANNONCES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object historique_annonces {
-  id_historique BIGINT PRIMARY KEY AUTO_INCREMENT
-  annonce_id BIGINT NOT NULL
+entity announcement_history {
+  *id_history : BIGINT PK
+  #id_announcement : BIGINT FK
   --
-  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-  type_modification VARCHAR(100)
-  colonne_modifiee VARCHAR(100)
-  
-  valeur_ancienne TEXT
-  valeur_nouvelle TEXT
-  
-  CONSTRAINT fk_hist_annonce 
-    FOREIGN KEY (annonce_id) REFERENCES annonces(id_annonce)
-    ON DELETE CASCADE ON UPDATE CASCADE
-  
-  INDEX idx_annonce_id (annonce_id)
-  INDEX idx_timestamp (timestamp)
+  timestamp : DATETIME
+  modification_type : VARCHAR(100)
+  modified_column : VARCHAR(100)
+  old_value : TEXT
+  new_value : TEXT
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' TABLE 11 : LOG_SAUVEGARDES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-object log_sauvegardes {
-  id_log_sauvegarde INT PRIMARY KEY AUTO_INCREMENT
+entity backup_logs {
+  *id_backup : INT PK
   --
-  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-  type_backup ENUM('FULL','INCREMENTAL') DEFAULT 'FULL'
-  fichier VARCHAR(500) NOT NULL
-  status ENUM('OK','ERREUR') DEFAULT 'OK'
-  
-  nb_bytes BIGINT
-  duree_secondes INT
-  message_erreur TEXT
-  
-  INDEX idx_timestamp (timestamp)
-  INDEX idx_status (status)
+  timestamp : DATETIME
+  backup_type : ENUM
+  backup_file : VARCHAR(500)
+  status : ENUM
+  file_size : BIGINT
+  duration_seconds : INT
+  error_message : TEXT
 }
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' RELATIONS
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-sources ||--o{ annonces : ""
-acheteurs ||--o{ annonces : ""
-annonces ||--|| qualification_scores : ""
-annonces ||--o{ notifications : ""
-annonces ||--o{ log_metier : ""
-annonces ||--o{ historique_annonces : ""
-annonces }o--|| annonce_mot_cle : ""
-mots_cles ||--o{ annonce_mot_cle : ""
-
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' NOTES TECHNIQUES
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-note right of annonces
-  **Contraintes critiques** :
-  
-  ✓ (source_id, id_externe) = clé
-    → Évite doublons automatiquement
-  
-  ✓ montant >= 0
-    → Valide montants négatifs
-  
-  ✓ date_publication <= deadline
-    → Logique métier respectée
-  
-  ✓ titre LENGTH > 5
-    → Évite données garbage
-  
-  **Indexes stratégiques** :
-  → Recherche par source
-  → Recherche par acheteur
-  → Recherche par dates (urgent)
-  → Recherche par région
-  → Recherche par statut
-  → Recherche par montant
-end note
-
-note right of log_technique
-  **Rétention** : 90 jours
-  (archiver après)
-  
-  Données JSON pour flexibilité
-  sur erreurs variables
-  
-  Durée_ms pour monitoring
-  performance APIs
-end note
-
-note right of annonce_mot_cle
-  **Type extraction** :
-  - REGEX : simple, rapide
-  - TF-IDF : sophiste, coûteux
-  - LLM : future expansion
-  - MANUAL : validation humaine
-  
-  Permet audit extraction
-end note
+sources ||--o{ announcements
+buyers ||--o{ announcements
+announcements }o--|| announcement_keywords
+keywords ||--o{ announcement_keywords
+announcements ||--|| qualification_scores
+announcements ||--o{ notifications
+announcements ||--o{ business_logs
+announcements ||--o{ announcement_history
 
 note bottom
-  **CRÉATION DB** :
-  ```
-  CREATE DATABASE unitee
-    DEFAULT CHARSET utf8mb4
-    DEFAULT COLLATE utf8mb4_unicode_ci;
-  
-  CREATE USER 'unitee_user'@'localhost'
-    IDENTIFIED BY 'strong_password';
-  
-  GRANT ALL PRIVILEGES ON unitee.*
-    TO 'unitee_user'@'localhost';
-  ```
-  
-  **INDEXES TOTAL** : ~20 stratégiques
-  **STORAGE** : ~2-5 GB (1 an données)
-  **PERFORMANCE** : O(1) doublon detection via UNIQUE KEY
+  Legend:
+  * = Primary Key
+  # = Foreign Key
+  RESTRICT = FK delete policy
+  CASCADE = Auto-delete related
 end note
 
 @enduml

@@ -1,0 +1,42 @@
+{
+  "kpi_summary": [
+    {
+      "total_announcements": 5,
+      "critique_count": "1",
+      "urgent_count": "1",
+      "normal_count": "0",
+      "ignore_count": "0",
+      "regions": 2,
+      "buyers": 1,
+      "sources": 1,
+      "avg_amount": "246111.00",
+      "max_amount": "300555.00",
+      "min_amount": "180000.00"
+    }
+  ],
+  "geographic_distribution": [],
+  "top_buyers": [
+    {
+      "buyer_name": "Communaut\u00c3\u00a9 de communes Val de Seine",
+      "announcement_count": 5,
+      "avg_score": "77.0"
+    }
+  ],
+  "data_quality": [
+    {
+      "total": 5,
+      "null_titles": "0",
+      "null_external_ids": "0",
+      "null_amounts": "0",
+      "invalid_dates": "0",
+      "completeness_pct": "100.0"
+    }
+  ],
+  "alert_distribution": [
+    {
+      "alert_level": "URGENT",
+      "count": 2,
+      "percentage": "100.0"
+    }
+  ]
+}
