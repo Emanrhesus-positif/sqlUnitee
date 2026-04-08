@@ -224,16 +224,16 @@ SELECT '' AS sep;
 SELECT '=== TEST 8 : ENUM FRANÇAIS ===' AS test_name;
 
 -- Vérification que les ENUM acceptent les valeurs françaises
-UPDATE annonces SET statut = 'QUALIFIE'  WHERE id_externe = 'TEST_CONTRAINTE_001';
-UPDATE annonces SET statut = 'IGNORE'    WHERE id_externe = 'TEST_CONTRAINTE_001';
-UPDATE annonces SET statut = 'REPONDU'   WHERE id_externe = 'TEST_CONTRAINTE_001';
-UPDATE annonces SET statut = 'NOUVEAU'   WHERE id_externe = 'TEST_CONTRAINTE_001';
+UPDATE annonces SET statut = 'QUALIFIED'  WHERE id_externe = 'TEST_CONTRAINTE_001';
+UPDATE annonces SET statut = 'IGNORED'    WHERE id_externe = 'TEST_CONTRAINTE_001';
+UPDATE annonces SET statut = 'RESPONDED'  WHERE id_externe = 'TEST_CONTRAINTE_001';
+UPDATE annonces SET statut = 'NEW'        WHERE id_externe = 'TEST_CONTRAINTE_001';
 
 SELECT
     id_externe,
     statut,
     CASE
-        WHEN statut = 'NOUVEAU' THEN 'PASS — ENUM français OK'
+        WHEN statut = 'NEW' THEN 'PASS — ENUM anglais OK'
         ELSE 'FAIL'
     END AS resultat
 FROM annonces

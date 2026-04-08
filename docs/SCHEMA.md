@@ -127,7 +127,7 @@
 | localisation | VARCHAR(255) | Work location |
 | region | VARCHAR(100) | Regional categorization |
 | lien_source | TEXT UNIQUE | Source URL (1 per record) |
-| statut | ENUM | NOUVEAU, QUALIFIE, IGNORE, REPONDU |
+| statut | ENUM | NEW, QUALIFIED, IGNORED, RESPONDED |
 | timestamp_import | DATETIME | Audit: import time |
 | timestamp_maj | DATETIME | Audit: last update |
 
@@ -223,14 +223,14 @@ base_score = 50
 | id_notification | BIGINT PK | Auto-increment |
 | annonce_id | BIGINT FK | CASCADE delete |
 | type_alerte | VARCHAR(50) | NEW_OPPORTUNITY, DEADLINE_CRITICAL, etc. |
-| statut | ENUM | NOUVEAU → ENVOYE → ACQUITTE → ARCHIVE |
-| priorite | INT 1-5 | 1=urgent, 5=basse (tri file d'attente) |
+| statut | ENUM | NEW → SENT → ACKNOWLEDGED → ARCHIVED |
+| priorite | INT 1-5 | 1=urgent, 5=low (queue sorting) |
 | date_creation | DATETIME | When alert generated |
 | date_envoi | DATETIME | When alert sent (NULL=not yet) |
 | date_acknowledge | DATETIME | When user acknowledged (NULL=not yet) |
 | message | LONGTEXT | Alert content (email body, etc.) |
 
-**Pipeline**: NOUVEAU → ENVOYE → ACQUITTE → ARCHIVE
+**Pipeline**: NEW → SENT → ACKNOWLEDGED → ARCHIVED
 
 ---
 

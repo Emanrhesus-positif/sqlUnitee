@@ -1,7 +1,7 @@
 -- ============================================================================
 -- UNITEE - Triggers
 -- Fichier : 07_triggers.sql
--- Correspond aux tables : annonces, scores_pertinence, notifications,
+-- Correspond aux tables : annonces, qualification_scores, notifications,
 --                         log_technique, log_metier, historique_annonces
 -- ============================================================================
 
@@ -69,7 +69,7 @@ BEGIN
     END IF;
 
     IF NEW.statut IS NULL OR NEW.statut = '' THEN
-        SET NEW.statut = 'NOUVEAU';
+        SET NEW.statut = 'NEW';
     END IF;
 
     SET NEW.timestamp_import = COALESCE(NEW.timestamp_import, NOW());
@@ -79,7 +79,7 @@ END $$
 -- ============================================================================
 -- TRIGGER 2 : apres_insert_annonce
 -- Événement : AFTER INSERT ON annonces
--- Rôle : Calcule automatiquement le score, insère dans scores_pertinence,
+-- Rôle : Calcule automatiquement le score, insère dans qualification_scores,
 --        crée une notification si le niveau d'alerte est CRITIQUE ou URGENT,
 --        trace l'opération dans log_technique
 -- ============================================================================
@@ -101,7 +101,7 @@ BEGIN
     SET v_niveau = CategoriserAlerte(v_score, v_jours);
 
     -- Insertion du score (relation 1:1 avec annonces)
-    INSERT INTO scores_pertinence (
+    INSERT INTO qualification_scores (
         id_annonce, score_pertinence, niveau_alerte, raison_scoring, date_calcul
     ) VALUES (
         NEW.id_annonce, v_score, v_niveau,
@@ -117,7 +117,7 @@ BEGIN
             NEW.id_annonce,
             CASE v_niveau WHEN 'CRITIQUE' THEN 'OPPORTUNITE_CRITIQUE'
                           ELSE 'OPPORTUNITE_URGENTE' END,
-            'NOUVEAU',
+            'NEW',
             CASE v_niveau WHEN 'CRITIQUE' THEN 1 ELSE 2 END,
             CONCAT('[', v_niveau, '] Score ', v_score, '/100 - Délai : ', v_jours, ' jours - ', NEW.titre),
             NOW()
@@ -125,7 +125,7 @@ BEGIN
     END IF;
 
     -- Trace dans log_technique
-    INSERT INTO log_technique (type_operation, source_operation, statut, message)
+    INSERT INTO log_technique (type_operation, source_operation, status, message)
     VALUES ('IMPORT_ANNONCE', 'trigger:apres_insert_annonce', 'OK',
             CONCAT('Annonce #', NEW.id_annonce, ' importée. Score=', v_score, ' Niveau=', v_niveau));
 END $$
@@ -157,7 +157,7 @@ BEGIN
         SET v_jours  = DATEDIFF(NEW.date_limite_reponse, NOW());
         SET v_niveau = CategoriserAlerte(v_score, v_jours);
 
-        UPDATE scores_pertinence
+        UPDATE qualification_scores
         SET score_pertinence = v_score,
             niveau_alerte    = v_niveau,
             raison_scoring   = CONCAT('Recalcul après modification. Niveau: ', v_niveau),
@@ -210,7 +210,7 @@ CREATE TRIGGER apres_insert_notification
 AFTER INSERT ON notifications
 FOR EACH ROW
 BEGIN
-    INSERT INTO log_technique (type_operation, source_operation, statut, message)
+    INSERT INTO log_technique (type_operation, source_operation, status, message)
     VALUES (
         'CREATION_NOTIFICATION',
         'trigger:apres_insert_notification',
@@ -224,12 +224,12 @@ END $$
 
 -- ============================================================================
 -- TRIGGER 6 : avant_insert_score
--- Événement : BEFORE INSERT ON scores_pertinence
+-- Événement : BEFORE INSERT ON qualification_scores
 -- Rôle : Valide que le score est bien dans la plage 0-100
 -- ============================================================================
 
 CREATE TRIGGER avant_insert_score
-BEFORE INSERT ON scores_pertinence
+BEFORE INSERT ON qualification_scores
 FOR EACH ROW
 BEGIN
     IF NEW.score_pertinence < 0 OR NEW.score_pertinence > 100 THEN

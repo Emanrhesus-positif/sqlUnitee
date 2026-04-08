@@ -1,7 +1,7 @@
 -- ============================================================================
 -- UNITEE - Procédures stockées
 -- Fichier : 06_procedures.sql
--- Correspond aux tables : annonces, scores_pertinence, log_technique, log_metier
+-- Correspond aux tables : annonces, qualification_scores, log_technique, log_metier
 -- ============================================================================
 
 USE unitee;
@@ -124,7 +124,7 @@ BEGIN
         ) VALUES (
             v_id_source, p_id_acheteur, p_id_externe, p_titre, p_description,
             p_montant_estime, 'EUR', p_date_publication, p_date_limite_reponse,
-            p_localisation, v_region, p_lien_source, 'NOUVEAU', NOW()
+            p_localisation, v_region, p_lien_source, 'NEW', NOW()
         );
 
         SET p_annonce_id = LAST_INSERT_ID();
@@ -181,7 +181,7 @@ BEGIN
         ) VALUES (
             p_id_source, p_id_acheteur, v_ext_id, v_titre,
             100000 * v_i, 'EUR', NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY),
-            'Île-de-France', 'NOUVEAU', NOW()
+            'Île-de-France', 'NEW', NOW()
         );
 
         RELEASE SAVEPOINT sp_annonce;
@@ -216,8 +216,8 @@ BEGIN
         COUNT(DISTINCT a.id_source)                                   AS sources_actives,
         NOW()                                                         AS genere_le
     FROM annonces a
-    LEFT JOIN scores_pertinence s ON a.id_annonce = s.id_annonce
-    WHERE a.statut IN ('NOUVEAU', 'QUALIFIE');
+    LEFT JOIN qualification_scores s ON a.id_annonce = s.id_annonce
+    WHERE a.statut IN ('NEW', 'QUALIFIED');
 END $$
 
 -- ============================================================================

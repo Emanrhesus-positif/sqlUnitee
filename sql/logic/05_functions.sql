@@ -1,7 +1,7 @@
 -- ============================================================================
 -- UNITEE - Fonctions SQL métier
 -- Fichier : 05_functions.sql
--- Correspond aux tables : annonces, scores_pertinence, mots_cles
+-- Correspond aux tables : annonces, qualification_scores, mots_cles
 -- ============================================================================
 
 USE unitee;
