@@ -15,6 +15,10 @@ credentials.json
 ################################################################################
 backups/
 *.sql
+!sql/schema/*.sql
+!sql/logic/*.sql
+!sql/analytics/*.sql
+!sql/tests/*.sql
 *.dump
 data/*.csv
 data/real_*.json
