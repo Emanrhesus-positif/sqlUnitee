@@ -31,12 +31,7 @@ CREATE TABLE IF NOT EXISTS sources (
   url_base VARCHAR(500) COMMENT 'URL base API (https://www.data.gouv.fr/api/1/)',
   type_source ENUM('API','SCRAPING','FLUX_RSS') DEFAULT 'API' COMMENT 'Type : REST API, web scraping, ou RSS feed',
   actif BOOLEAN DEFAULT true COMMENT 'Flag : source active ou désactivée',
-  date_creation DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Audit : date création source',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table SOURCES - Enregistre les 3-5 sources de données'
+  date_creation DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Audit : date création source'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -53,12 +48,7 @@ CREATE TABLE IF NOT EXISTS acheteurs (
   region VARCHAR(100) COMMENT 'Région siège social (pour stats géographiques)',
   contact_email VARCHAR(255) COMMENT 'Email contact (optionnel)',
   contact_phone VARCHAR(20) COMMENT 'Téléphone contact (optionnel)',
-  date_creation DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Audit : date création',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table ACHETEURS - Référence des acheteurs publics français'
+  date_creation DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Audit : date création'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -73,12 +63,7 @@ CREATE TABLE IF NOT EXISTS mots_cles (
   mot_cle VARCHAR(100) UNIQUE NOT NULL COMMENT 'Keyword exact (modulaire, préfabriqué, etc)',
   categorie ENUM('PRIMARY','SECONDARY','EXTRACTED') DEFAULT 'EXTRACTED' COMMENT 'Type : PRIMARY/SECONDARY (config.yaml) ou EXTRACTED (TF-IDF J3)',
   pertinence INT CHECK (pertinence >= 0 AND pertinence <= 100) DEFAULT 50 COMMENT 'Score pertinence défaut 0-100',
-  date_creation DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Audit : date découverte keyword',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table MOTS_CLES - Catalogue keywords pertinents'
+  date_creation DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Audit : date découverte keyword'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -112,7 +97,7 @@ CREATE TABLE IF NOT EXISTS annonces (
   -- Localisation
   localisation VARCHAR(255) COMMENT 'Lieu exécution travaux',
   region VARCHAR(100) COMMENT 'Région France (pour filtrage/stats)',
-  lien_source TEXT UNIQUE COMMENT 'URL source (1 lien = 1 annonce max)',
+  lien_source VARCHAR(2000) COMMENT 'URL source (1 lien = 1 annonce max)',
   
   -- Métadonnées
   statut ENUM('NEW','QUALIFIED','IGNORED','RESPONDED') DEFAULT 'NEW' COMMENT 'Statut traitement',
@@ -122,34 +107,23 @@ CREATE TABLE IF NOT EXISTS annonces (
   -- Contraintes intégrité
   CONSTRAINT fk_annonces_source 
     FOREIGN KEY (source_id) REFERENCES sources(id_source)
-    ON DELETE RESTRICT ON UPDATE CASCADE
-    COMMENT 'FK source : restrict delete',
+    ON DELETE RESTRICT ON UPDATE CASCADE,
   
   CONSTRAINT fk_annonces_acheteur 
     FOREIGN KEY (acheteur_id) REFERENCES acheteurs(id_acheteur)
-    ON DELETE RESTRICT ON UPDATE CASCADE
-    COMMENT 'FK acheteur : restrict delete',
+    ON DELETE RESTRICT ON UPDATE CASCADE,
   
   CONSTRAINT uk_annonce_doublon 
-    UNIQUE (source_id, id_externe)
-    COMMENT 'Doublon detection : (source_id, id_externe) => unique => O(1)',
+    UNIQUE (source_id, id_externe),
   
   CONSTRAINT ck_titre_length
-    CHECK (CHAR_LENGTH(titre) > 5)
-    COMMENT 'Titre minimum 6 caractères (évite garbage)',
+    CHECK (CHAR_LENGTH(titre) > 5),
   
   CONSTRAINT ck_montant_positif
-    CHECK (montant_estime IS NULL OR montant_estime >= 0)
-    COMMENT 'Montant >= 0 ou NULL (pas négatif)',
+    CHECK (montant_estime IS NULL OR montant_estime >= 0),
   
   CONSTRAINT ck_dates_annonce 
     CHECK (date_publication <= date_limite_reponse)
-    COMMENT 'Logique métier : publication <= deadline',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table ANNONCES - PRINCIPALE table métier'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -171,18 +145,11 @@ CREATE TABLE IF NOT EXISTS annonce_mot_cle (
   
   CONSTRAINT fk_amc_annonce 
     FOREIGN KEY (annonce_id) REFERENCES annonces(id_annonce)
-    ON DELETE CASCADE ON UPDATE CASCADE
-    COMMENT 'FK annonce : cascade delete (auto-nettoyer)',
+    ON DELETE CASCADE ON UPDATE CASCADE,
   
   CONSTRAINT fk_amc_mot_cle 
     FOREIGN KEY (mot_cle_id) REFERENCES mots_cles(id_mot_cle)
     ON DELETE RESTRICT ON UPDATE CASCADE
-    COMMENT 'FK keyword : restrict delete',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table ANNONCE_MOT_CLE - Liaison N:N (annonces <--> keywords)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -214,12 +181,6 @@ CREATE TABLE IF NOT EXISTS qualification_scores (
   CONSTRAINT fk_score_annonce 
     FOREIGN KEY (annonce_id) REFERENCES annonces(id_annonce)
     ON DELETE CASCADE ON UPDATE CASCADE
-    COMMENT 'FK annonce : cascade delete',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table QUALIFICATION_SCORES - Scoring pertinence 1:1'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -247,12 +208,6 @@ CREATE TABLE IF NOT EXISTS notifications (
   CONSTRAINT fk_notif_annonce 
     FOREIGN KEY (annonce_id) REFERENCES annonces(id_annonce)
     ON DELETE CASCADE ON UPDATE CASCADE
-    COMMENT 'FK annonce : cascade delete',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table NOTIFICATIONS - Alertes générées'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -274,12 +229,7 @@ CREATE TABLE IF NOT EXISTS log_technique (
   -- Détails
   message TEXT COMMENT 'Message humain (ex: API timeout retry 2/3)',
   details_json JSON COMMENT 'Flex données structure variable (stack trace, HTTP status, etc)',
-  duree_ms INT COMMENT 'Durée opération (monitoring performance)',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table LOG_TECHNIQUE - Logs techniques (rétention 90 jours)'
+  duree_ms INT COMMENT 'Durée opération (monitoring performance)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -306,12 +256,6 @@ CREATE TABLE IF NOT EXISTS log_metier (
   CONSTRAINT fk_logmetier_annonce 
     FOREIGN KEY (annonce_id) REFERENCES annonces(id_annonce)
     ON DELETE CASCADE ON UPDATE CASCADE
-    COMMENT 'FK annonce : cascade delete',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table LOG_METIER - Historique modifications métier (complet)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -337,12 +281,6 @@ CREATE TABLE IF NOT EXISTS historique_annonces (
   CONSTRAINT fk_hist_annonce 
     FOREIGN KEY (annonce_id) REFERENCES annonces(id_annonce)
     ON DELETE CASCADE ON UPDATE CASCADE
-    COMMENT 'FK annonce : cascade delete',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table HISTORIQUE_ANNONCES - Version control RGPD (complet)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -364,12 +302,7 @@ CREATE TABLE IF NOT EXISTS log_sauvegardes (
   -- Détails
   nb_bytes BIGINT COMMENT 'Taille fichier backup',
   duree_secondes INT COMMENT 'Durée backup (secondes)',
-  message_erreur TEXT COMMENT 'Si erreur, raison failure',
-  
-  ENGINE = InnoDB,
-  DEFAULT CHARSET = utf8mb4,
-  DEFAULT COLLATE = utf8mb4_unicode_ci,
-  COMMENT = 'Table LOG_SAUVEGARDES - Backup audit (RTO/RPO)'
+  message_erreur TEXT COMMENT 'Si erreur, raison failure'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================

@@ -89,9 +89,9 @@ pylint==3.0.0                 # Code analyzer
 # transformers==4.35.0
 # torch==2.1.0
 
-# Pour visualisation dashboard (future) :
-# plotly==5.17.0
-# dash==2.14.0
+# Pour visualisation dashboard :
+plotly==5.17.0
+streamlit==1.29.0
 
 # Pour scraping BOAMP (if needed) :
 # beautifulsoup4==4.12.0

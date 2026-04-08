@@ -54,7 +54,7 @@ CREATE PROCEDURE InsererAnnonce(
 SQL SECURITY INVOKER
 NOT DETERMINISTIC
 MODIFIES SQL DATA
-BEGIN
+main_block: BEGIN
     DECLARE v_id_source  INT;
     DECLARE v_existant   INT;
     DECLARE v_region     VARCHAR(100);
@@ -80,7 +80,7 @@ BEGIN
         SET p_statut     = 'ERREUR';
         SET p_message    = CONCAT('Source introuvable : ', p_nom_source);
         ROLLBACK;
-        LEAVE InsererAnnonce;
+        LEAVE main_block;
     END IF;
 
     -- 2. Normaliser la région si non fournie
@@ -108,7 +108,7 @@ BEGIN
             timestamp_maj        = NOW()
         WHERE id_annonce = v_existant;
 
-        INSERT INTO log_metier (id_annonce, type_operation, utilisateur, description)
+        INSERT INTO log_metier (annonce_id, type_operation, utilisateur, description)
         VALUES (v_existant, 'MISE_A_JOUR', p_nom_source,
                 CONCAT('Annonce mise à jour depuis ', p_nom_source));
 
@@ -258,7 +258,7 @@ BEGIN
     SET p_nb_archives = ROW_COUNT();
 
     -- Tracer l'opération de maintenance
-    INSERT INTO log_technique (type_operation, source_operation, statut, message)
+    INSERT INTO log_technique (type_operation, source_operation, status, message)
     VALUES ('ARCHIVAGE', 'ArchiverDonneesAnciennes', 'OK',
             CONCAT(p_nb_archives, ' logs techniques archivés (>', p_jours_retention, ' jours)'));
 

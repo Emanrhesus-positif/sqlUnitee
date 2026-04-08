@@ -102,7 +102,7 @@ BEGIN
 
     -- Insertion du score (relation 1:1 avec annonces)
     INSERT INTO qualification_scores (
-        id_annonce, score_pertinence, niveau_alerte, raison_scoring, date_calcul
+        annonce_id, score_pertinence, niveau_alerte, raison_scoring, date_calcul
     ) VALUES (
         NEW.id_annonce, v_score, v_niveau,
         CONCAT('Score auto: keywords+montant+region+deadline. Niveau: ', v_niveau),
@@ -112,7 +112,7 @@ BEGIN
     -- Notification si opportunité critique ou urgente
     IF v_niveau IN ('CRITIQUE', 'URGENT') THEN
         INSERT INTO notifications (
-            id_annonce, type_alerte, statut, priorite, message, date_creation
+            annonce_id, type_alerte, statut, priorite, message, date_creation
         ) VALUES (
             NEW.id_annonce,
             CASE v_niveau WHEN 'CRITIQUE' THEN 'OPPORTUNITE_CRITIQUE'
@@ -162,11 +162,11 @@ BEGIN
             niveau_alerte    = v_niveau,
             raison_scoring   = CONCAT('Recalcul après modification. Niveau: ', v_niveau),
             date_maj         = NOW()
-        WHERE id_annonce = NEW.id_annonce;
+        WHERE annonce_id = NEW.id_annonce;
     END IF;
 
     -- Traçabilité : enregistrement dans log_metier
-    INSERT INTO log_metier (id_annonce, type_operation, utilisateur, description, avant_etat, apres_etat)
+    INSERT INTO log_metier (annonce_id, type_operation, utilisateur, description, avant_state, apres_state)
     VALUES (
         NEW.id_annonce,
         'MISE_A_JOUR',
@@ -189,7 +189,7 @@ BEFORE DELETE ON annonces
 FOR EACH ROW
 BEGIN
     INSERT INTO historique_annonces (
-        id_annonce, type_modification, colonne_modifiee,
+        annonce_id, type_modification, colonne_modifiee,
         valeur_ancienne, valeur_nouvelle
     ) VALUES (
         OLD.id_annonce,
@@ -216,7 +216,7 @@ BEGIN
         'trigger:apres_insert_notification',
         'OK',
         CONCAT('Notification #', NEW.id_notification,
-               ' créée pour annonce #', NEW.id_annonce,
+               ' créée pour annonce #', NEW.annonce_id,
                ' - Type: ', NEW.type_alerte,
                ' - Priorité: ', NEW.priorite)
     );
