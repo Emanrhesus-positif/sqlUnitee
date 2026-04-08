@@ -1,0 +1,227 @@
+version: '3.8'
+
+# docker-compose.yml - UNITEE
+# Configuration MySQL 8.0 + PhpMyAdmin
+# 
+# Usage :
+#   docker-compose up -d       (Démarrer)
+#   docker-compose logs -f     (Logs)
+#   docker-compose down        (Arrêter)
+#   docker-compose ps          (Status)
+#
+# Date : 8 avril 2026
+
+services:
+  ############################################################################
+  # MySQL 8.0
+  ############################################################################
+  mysql:
+    image: mysql:8.0
+    container_name: unitee_mysql
+    
+    # Ports
+    ports:
+      - "${MYSQL_PORT_HOST:-3306}:3306"
+    
+    # Variables d'environnement
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-root_password_123456}"
+      MYSQL_DATABASE: "${DB_NAME:-unitee}"
+      MYSQL_USER: "${DB_USER:-unitee_user}"
+      MYSQL_PASSWORD: "${DB_PASS:-change_me_strong_password}"
+      MYSQL_INITDB_SKIP_TZINFO: "yes"
+      
+      # SQL Strict mode
+      MYSQL_STRICT_MODE: "yes"
+    
+    # Configuration MySQL
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --sql-mode=STRICT_TRANS_TABLES
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone='+00:00'
+      --log_bin_trust_function_creators=1
+    
+    # Volumes
+    volumes:
+      # Persistence données MySQL
+      - mysql_data:/var/lib/mysql
+      
+      # Script init (si besoin, décommenter et créer fichier)
+      # - ./sql/init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      
+      # Logs
+      - ./logs/mysql:/var/log/mysql
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Networks
+    networks:
+      - unitee_network
+    
+    # Ressources (limiter CPU/RAM)
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  ############################################################################
+  # PhpMyAdmin (interface web MySQL)
+  ############################################################################
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: unitee_phpmyadmin
+    
+    # Ports
+    ports:
+      - "${PHPMYADMIN_PORT:-8080}:80"
+    
+    # Dépendance
+    depends_on:
+      mysql:
+        condition: service_healthy
+    
+    # Variables d'environnement
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: "${DB_USER:-unitee_user}"
+      PMA_PASSWORD: "${DB_PASS:-change_me_strong_password}"
+      PMA_DB: "${DB_NAME:-unitee}"
+      
+      # Configuration
+      UPLOAD_LIMIT: 256M  # Max upload SQL
+    
+    # Volumes
+    volumes:
+      # Sessions PhpMyAdmin
+      - phpmyadmin_sessions:/sessions
+      # Config custom (optionnel)
+      # - ./config/phpmyadmin.conf.php:/etc/phpmyadmin/config.user.inc.php:ro
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Networks
+    networks:
+      - unitee_network
+
+################################################################################
+# VOLUMES PERSIST DATA
+################################################################################
+volumes:
+  mysql_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "./data/mysql"
+  
+  phpmyadmin_sessions:
+    driver: local
+
+################################################################################
+# NETWORKS
+################################################################################
+networks:
+  unitee_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+################################################################################
+# USAGE EXAMPLES
+################################################################################
+
+# 1. DÉMARRER LES SERVICES
+#    docker-compose up -d
+#    (Attend 30s que MySQL démarre)
+
+# 2. VÉRIFIER STATUS
+#    docker-compose ps
+#    docker-compose logs mysql
+#    docker-compose logs phpmyadmin
+
+# 3. ACCÉDER PHPMYADMIN
+#    URL: http://localhost:8080
+#    User: unitee_user
+#    Pass: (voir .env DB_PASS)
+
+# 4. CONNECTER MYSQL
+#    mysql -h localhost -u unitee_user -p -D unitee
+#    mysql -h 127.0.0.1 -P 3306 -u unitee_user -p unitee
+
+# 5. EXÉCUTER SQL INIT
+#    docker-compose exec mysql mysql -u unitee_user -p unitee < sql/02_create_tables.sql
+#    docker-compose exec mysql mysql -u unitee_user -p unitee < sql/03_create_indexes.sql
+#    docker-compose exec mysql -u unitee_user -p unitee < sql/04_create_base_data.sql
+
+# 6. VÉRIFIER CONNEXION EN PYTHON
+#    import mysql.connector
+#    cnx = mysql.connector.connect(
+#      host="localhost",
+#      user="unitee_user",
+#      password="...",
+#      database="unitee"
+#    )
+#    print(cnx.is_connected())
+
+# 7. SAUVEGARDE
+#    docker-compose exec mysql mysqldump -u unitee_user -p unitee > backup.sql
+
+# 8. RESTAURATION
+#    docker-compose exec -T mysql mysql -u unitee_user -p unitee < backup.sql
+
+# 9. ARRÊTER SERVICES
+#    docker-compose down
+#    (Données MySQL persistent dans ./data/mysql)
+
+# 10. NETTOYER COMPLÈTEMENT (⚠️ DELETE DATA)
+#    docker-compose down -v
+#    rm -rf ./data/mysql
+
+################################################################################
+# TROUBLESHOOTING
+################################################################################
+
+# Q: "Cannot connect to MySQL"
+# R: Vérifier logs : docker-compose logs mysql
+#    Attendre 30s après "up -d"
+#    Port 3306 pas bloqué par firewall
+
+# Q: "PhpMyAdmin shows 'Connection error'"
+# R: Vérifier MySQL healthy : docker-compose ps
+#    Check depends_on condition: service_healthy
+
+# Q: "Docker volume permission denied"
+# R: Linux : sudo chown -R 999:999 ./data/mysql
+#    Ou utiliser sudo docker-compose
+
+# Q: "MySQL too much RAM"
+# R: Ajuster deploy.resources.limits.memory
+#    Défaut : 1G (peut réduire à 512M)
+
+################################################################################

@@ -1,0 +1,343 @@
+# 🌐 CONFIGURATION DES SOURCES DE DONNÉES - sources_config.yaml
+#
+# Ce fichier centralise TOUTES les URLs API et endpoints utilisés
+# pour récupérer les données des marchés publics.
+#
+# À remplir pendant JOUR 2 après exploration des APIs
+#
+# Date : 8 avril 2026
+# Statut : À DÉCOUVRIR
+
+################################################################################
+# 1. API DATA.GOUV.FR (Données Officielles Gouvernementales)
+################################################################################
+
+data_gouv_fr:
+  # Statut : À tester J2
+  enabled: true
+  
+  # URL de base de l'API
+  api_base: "https://www.data.gouv.fr/api/1/"
+  
+  # Endpoints à utiliser
+  endpoints:
+    # Rechercher datasets
+    search_datasets: "/datasets/?q=marchés+publics&page={page}"
+    # Format : GET /api/1/datasets/?q=marchés+publics&page=1
+    # Réponse : JSON avec liste datasets
+    
+    # Récupérer détails d'un dataset
+    dataset_detail: "/datasets/{dataset_id}/"
+    # Format : GET /api/1/datasets/abc123/
+    
+    # Récupérer ressources d'un dataset (CSV, JSON, etc.)
+    dataset_resources: "/datasets/{dataset_id}/resources/"
+    # Format : GET /api/1/datasets/abc123/resources/
+  
+  # Paramètres de recherche
+  search_params:
+    # Mots-clés de recherche
+    q: "marchés publics"
+    
+    # Nombre de pages à récupérer (max)
+    max_pages: 10
+    
+    # Formats de fichiers à accepter
+    # Ne télécharger que CSV/JSON
+    format_filter:
+      - "csv"
+      - "json"
+      - "xml"
+    
+    # Taille de page (items par page)
+    page_size: 50
+  
+  # Gestion des erreurs / retry
+  retry:
+    # Nombre de tentatives en cas d'erreur
+    max_attempts: 3
+    
+    # Timeout par requête (secondes)
+    timeout_seconds: 30
+    
+    # Multiplicateur de backoff exponentiel
+    # Attente = delay * (backoff_multiplier ^ tentative)
+    backoff_multiplier: 2
+    initial_delay: 1
+  
+  # Headers HTTP
+  headers:
+    User-Agent: "Unitee-Veille/1.0 (+https://github.com/sqlunitee)"
+    Accept: "application/json"
+  
+  # Mapping colonnes
+  # Comment transformer colonnes API vers schéma Unitee
+  column_mapping:
+    title: "title"              # Titre du dataset → titre annonce
+    description: "description"  # Description
+    organization: "organization.name"  # Acheteur
+    # À affiner selon structure JSON réelle
+
+################################################################################
+# 2. API BOAMP (Bulletin Officiel Annonces Marchés Publics)
+################################################################################
+
+boamp:
+  # Statut : À découvrir J2
+  enabled: true
+  
+  # URL de base
+  url_base: "https://www.boamp.fr/"
+  
+  # À DÉCOUVRIR : structure API ou méthode scraping
+  # Options :
+  # A) API REST directe (/api/...)
+  # B) Scraping HTML via BeautifulSoup
+  # C) Flux RSS (si disponible)
+  
+  # PLACEHOLDER pour endpoints (à remplir après découverte)
+  endpoints:
+    # Option A : Si API REST existe
+    search_api: "/api/v1/search"  # À TESTER
+    
+    # Option B : Si scraping HTML
+    search_page: "/pages/recherche/"
+    
+    # Option C : Si flux RSS
+    rss_feed: "/rss"
+  
+  # Paramètres de recherche
+  search_params:
+    # Mots-clés principaux
+    keywords: "modulaire OR préfabriqué OR assemblage"
+    
+    # Champ de recherche
+    search_fields:
+      - "titre"
+      - "description"
+    
+    # Periode (jours)
+    # Récupérer annonces des derniers N jours
+    days_back: 7
+    
+    # Ordre de tri
+    sort_by: "date_publication"
+    sort_order: "DESC"
+  
+  # Gestion des erreurs
+  retry:
+    max_attempts: 3
+    timeout_seconds: 30
+    backoff_multiplier: 2
+  
+  # Scraping (si API indirecte)
+  scraping:
+    # Selecteurs CSS pour BeautifulSoup
+    selectors:
+      title: ".announcement-title"      # À DÉCOUVRIR
+      description: ".announcement-desc" # À DÉCOUVRIR
+      budget: ".announcement-budget"    # À DÉCOUVRIR
+      deadline: ".announcement-deadline" # À DÉCOUVRIR
+      url: ".announcement-link"         # À DÉCOUVRIR
+  
+  # Headers HTTP
+  headers:
+    User-Agent: "Unitee-Veille/1.0"
+    Accept: "text/html,application/json"
+  
+  # Authentification (si required)
+  auth:
+    # Method : none, basic, oauth2, api_key
+    method: "none"
+    # username: ""  # Si basic auth
+    # password: ""
+    # api_key: ""   # Si API key required
+    # oauth_token: "" # Si OAuth
+
+################################################################################
+# 3. DONNÉES SYNTHÉTIQUES (Fallback / Test)
+################################################################################
+
+synthetic_data:
+  # Statut : Prêt
+  enabled: true
+  
+  # Fichier de données test
+  sample_file: "./data/samples/sample_data.json"
+  
+  # Nombre d'annonces dans sample
+  sample_size: 100
+  
+  # Utiliser comme fallback si APIs unavailable
+  use_as_fallback: true
+  
+  # Format du fichier
+  format: "json"
+  schema:
+    id: "string"
+    source: "string"
+    title: "string"
+    description: "string"
+    buyer: "string"
+    budget: "float"
+    publication_date: "datetime"
+    deadline_date: "datetime"
+    location: "string"
+    url: "string"
+
+################################################################################
+# 4. TRANSFORMATION DES DONNÉES (Mapping Colonnes)
+################################################################################
+
+# Une fois récupérées, les colonnes doivent être mappées vers schéma Unitee
+# Exemple :
+#
+# data.gouv.fr: {
+#   "title": "Fourniture bâtiments",
+#   "description": "Marché pour constrution...",
+#   "organization": {"name": "Conseil régional"}
+# }
+#
+# Transformation vers Unitee:
+# {
+#   "id_externe": "unique_id_from_source",
+#   "source": "DATA_GOUV_FR",
+#   "titre": "Fourniture bâtiments",
+#   "description": "Marché pour constrution...",
+#   "acheteur": "Conseil régional",
+#   ...
+# }
+
+schema_mappings:
+  # Template de mapping (à adapter pour chaque source)
+  generic:
+    id_externe: "{source_unique_id}"
+    source: "{source_name}"
+    titre: "{title}"
+    description: "{description}"
+    acheteur: "{organization}"
+    montant_estime: "{budget}"
+    date_publication: "{published_date}"
+    date_limite_reponse: "{deadline_date}"
+    localisation: "{location}"
+    lien_source: "{url}"
+
+################################################################################
+# 5. CACHE & OPTIMISATION
+################################################################################
+
+caching:
+  # Mettre en cache résultats API pour éviter requêtes redondantes
+  enabled: true
+  
+  # Dossier cache
+  cache_dir: "./cache/api"
+  
+  # Durée de vie cache (heures)
+  ttl_hours: 24
+  
+  # Taille max cache (MB)
+  max_size_mb: 500
+
+################################################################################
+# 6. MONITORING & ALERTES
+################################################################################
+
+monitoring:
+  # Suivi des appels API
+  track_api_calls: true
+  
+  # Alerte si aucune donnée nouvelle depuis X jours
+  alert_if_no_data_days: 7
+  
+  # Log des erreurs API
+  log_errors: true
+  error_log: "./logs/api_errors.log"
+
+################################################################################
+# 7. RATE LIMITING (Respecter ToS des APIs)
+################################################################################
+
+rate_limiting:
+  # data.gouv.fr (généralement pas de limite)
+  data_gouv_fr:
+    enabled: false
+    requests_per_second: 10
+  
+  # BOAMP (à vérifier ToS)
+  boamp:
+    enabled: true
+    requests_per_second: 1     # 1 requête/sec = 3600/heure = prudent
+    respect_robots_txt: true
+
+################################################################################
+# 8. STATUS DES CONNEXIONS (À METTRE À JOUR J2)
+################################################################################
+
+status:
+  # À mettre à jour après test J2
+  
+  data_gouv_fr:
+    tested: false          # Changer à true après test
+    reachable: null        # true/false après test
+    last_check: null       # timestamp
+    notes: "À tester J2"
+  
+  boamp:
+    tested: false
+    reachable: null
+    last_check: null
+    notes: "À tester J2 - Vérifier si API ou scraping"
+  
+  overall_status: "PENDING_DISCOVERY"
+
+################################################################################
+# TEMPLATE DE TEST J2
+################################################################################
+
+# À exécuter dans Unitee.ipynb - Onglet 2
+test_queries: |
+  
+  # Test 1 : data.gouv.fr API
+  import requests
+  response = requests.get('https://www.data.gouv.fr/api/1/datasets/', 
+                         params={'q': 'marchés publics', 'page': 1})
+  print(f"Status: {response.status_code}")
+  print(f"Datasets found: {len(response.json()['data'])}")
+  
+  # Test 2 : BOAMP
+  # À adapter selon structure découverte
+  response = requests.get('https://www.boamp.fr/pages/recherche/')
+  print(f"Status: {response.status_code}")
+  # Parser HTML ou JSON selon format
+
+################################################################################
+# VERSION & HISTORIQUE
+################################################################################
+
+version: "1.0"
+created: "2026-04-08"
+last_updated: "2026-04-08"
+
+history:
+  - date: "2026-04-08"
+    action: "Création template"
+    status: "À découvrir J2"
+
+################################################################################
+# NOTES IMPORTANTES
+################################################################################
+
+notes: |
+  
+  CE FICHIER SERA COMPLÉTÉ PENDANT JOUR 2 :
+  
+  ✓ Tester accès data.gouv.fr API
+  ✓ Vérifier endpoints exacts
+  ✓ Tester BOAMP (API ou scraping)
+  ✓ Documenter format réponses
+  ✓ Mapper colonnes vers schéma Unitee
+  ✓ Tester retry logic
+  ✓ Vérifier rate limiting / ToS
+  
+  DEADLINE : Fin Jour 2, avant Jour 3 transformation

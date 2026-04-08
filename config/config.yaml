@@ -1,0 +1,327 @@
+# ⚙️ CONFIGURATION UNITEE - config.yaml
+# 
+# IMPORTANT : Cette configuration centralisée est chargée par :
+# - Unitee.ipynb (Onglet 1)
+# - Scripts SQL (si applicable)
+# - Scripts de backup/restore
+#
+# MODIFICATION : Voir config/PARAMETRES.md pour explications détaillées
+# 
+# Date : 8 avril 2026
+# Version : 1.0
+
+################################################################################
+# 1. MOTS-CLÉS PERTINENTS
+################################################################################
+
+keywords:
+  # Mots-clés primaires : recherche principale dans titre + description
+  # Impact ÉLEVÉ sur scoring
+  primary:
+    - "modulaire"
+    - "préfabriqué"
+    - "assemblage rapide"
+    - "bâtiment en kit"
+    - "base vie"
+  
+  # Mots-clés secondaires : boost moins important
+  # À ajouter si découverts lors de l'analyse J3
+  secondary:
+    - "extension"
+    - "classe temporaire"
+    - "structure préfabriquée"
+    - "construction modulaire"
+    - "bâtiment rapide"
+  
+  # À DÉCOUVRIR J3 : top 5 keywords via analyse TF-IDF
+  # Remplacer avec résultats réels après analyse données
+  top_5_discovered: []  # Remplir après Jour 3
+
+################################################################################
+# 2. CRITÈRES DE MONTANT
+################################################################################
+
+procurement:
+  # Montant MINIMUM d'inclusion (EUR)
+  # 0 = inclure tous les marchés
+  # Augmenter si vous voulez filtrer petits marchés
+  min_amount: 0
+  
+  # Montant MAXIMUM d'inclusion
+  # null = pas de limite
+  max_amount: null
+  
+  # Devise (pour documentation et conversions futures)
+  currency: "EUR"
+  
+  # Paliers de scoring
+  # Ajuste points basés sur montant estimé
+  # À synchroniser avec fonction SQL CalculerScorePertinence()
+  scoring_thresholds:
+    very_high: 500000      # > 500k€ : +25 points
+    high: 100000           # > 100k€ : +15 points
+    medium: 50000          # > 50k€ : +5 points
+    low: 0                 # Else : 0 points
+
+################################################################################
+# 3. PARAMÈTRES GÉOGRAPHIQUES
+################################################################################
+
+regions:
+  # true = inclure TOUTE la France
+  # false = utiliser liste 'included' ci-dessous
+  include_all: true
+  
+  # Régions à EXCLURE (même avec include_all: true)
+  # Utile si certaines zones pas pertinentes
+  excluded: []
+  
+  # Régions à INCLURE (si include_all: false)
+  # Voir liste complète des régions FR en fin de fichier
+  included: []
+
+################################################################################
+# 4. SOURCES DE DONNÉES EXTERNES
+################################################################################
+
+sources:
+  # API data.gouv.fr (données officielles gouvernementales)
+  data_gouv_fr:
+    enabled: true
+    # Autres paramètres dans : config/sources_config.yaml
+  
+  # API BOAMP (Bulletin Officiel Annonces Marchés Publics)
+  boamp:
+    enabled: true
+    # Autres paramètres dans : config/sources_config.yaml
+  
+  # Données synthétiques (test/demo)
+  # Utilisé en fallback si APIs unavailable
+  synthetic:
+    enabled: true
+    sample_file: "./data/samples/sample_data.json"
+
+################################################################################
+# 5. PLANIFICATION / SCHEDULING
+################################################################################
+
+schedule:
+  # Fréquence de mise à jour des données
+  # weekdays = lundi-vendredi (pas samedi/dimanche)
+  frequency: "weekdays"
+  
+  # Heure d'import quotidien (HH:MM)
+  time: "07:30"
+  
+  # Fuseau horaire
+  timezone: "Europe/Paris"
+  
+  # Heures d'exécution (pour info/monitoring)
+  execution_mode: "scheduled"  # scheduled ou manual
+
+################################################################################
+# 6. SYSTÈME DE SAUVEGARDE
+################################################################################
+
+backup:
+  # Activer/désactiver sauvegarde automatique
+  enabled: true
+  
+  # Fréquence
+  frequency: "daily"      # daily, weekly, monthly
+  
+  # Heure d'exécution (UTC)
+  time: "22:00"
+  
+  # Fuseau horaire
+  timezone: "Europe/Paris"
+  
+  # Jours d'exécution (pour daily)
+  # weekdays = lundi-vendredi
+  # all = tous les jours
+  days: "all"
+  
+  # POLITIQUE DE RÉTENTION
+  retention:
+    # Nombre de jours à conserver
+    # ⚠️ NE PAS METTRE < 7 JOURS (risque de perte données)
+    days: 30
+    
+    # Toujours conserver backup le plus récent
+    keep_latest: true
+    
+    # Compresser anciens backups (économiser espace)
+    compress_old: true
+    compress_after_days: 7
+  
+  # DESTINATION
+  # Dossier local où sauvegarder
+  location: "./backups"
+  
+  # Sauvegarde distante (optionnel)
+  remote_backup:
+    enabled: false
+    # Exemple : AWS S3, FTP, etc.
+    type: "s3"
+    bucket: ""
+    region: ""
+  
+  # LOGGING
+  log_to_database: true      # Enregistrer dans log_sauvegardes
+  log_to_file: true          # Aussi écrire fichier log
+  log_path: "./logs/backup.log"
+
+################################################################################
+# 7. PARAMÈTRES NOTEBOOK JUPYTER
+################################################################################
+
+notebook:
+  # Chemins données
+  data:
+    raw: "./data/annonces_raw.csv"
+    cleaned: "./data/annonces_cleaned.csv"
+    validation_report: "./data/validation_report.md"
+  
+  # Paramètres réseau
+  api:
+    timeout_seconds: 30     # Timeout requêtes API
+    max_retries: 3          # Retry en cas d'erreur
+    backoff_multiplier: 2   # Délai entre retries
+  
+  # Paramètres traitement
+  processing:
+    batch_size: 100         # Nombre annonces par batch
+    min_title_length: 5     # Min caractères titre
+    min_description_length: 10  # Min caractères description
+  
+  # Mode debug
+  debug: false              # Affiche logs verbeux
+  save_intermediate: true   # Sauvegarder données intermédiaires
+
+################################################################################
+# 8. PARAMÈTRES BASE DE DONNÉES
+################################################################################
+
+database:
+  # Voir `.env` pour credentials (DB_USER, DB_PASS)
+  # Ceci sont infos générales seulement
+  
+  host: "localhost"
+  port: 3306
+  name: "unitee"
+  charset: "utf8mb4"
+  
+  # Paramètres connexion
+  connect_timeout: 30
+  max_connections: 10
+  
+  # Mode strict SQL
+  sql_mode: "STRICT_TRANS_TABLES"
+
+################################################################################
+# 9. NIVEAUX D'ALERTE
+################################################################################
+
+alerts:
+  # Seuils d'alerte basés sur score + deadline
+  # CRITIQUE : score > 75 ET deadline < 7j
+  # URGENT : score > 60 ET deadline < 14j
+  # NORMAL : score > 50
+  # IGNORE : score <= 50
+  
+  critical:
+    score_min: 75
+    days_before_deadline: 7
+  
+  urgent:
+    score_min: 60
+    days_before_deadline: 14
+  
+  normal:
+    score_min: 50
+
+################################################################################
+# 10. LOGGING & AUDIT
+################################################################################
+
+logging:
+  # Niveau de log
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  
+  # Fichiers log
+  technical_log: "./logs/technical.log"
+  business_log: "./logs/business.log"
+  
+  # Rotation logs (éviter fichiers énormes)
+  rotation:
+    max_size_mb: 100
+    backup_count: 10
+
+################################################################################
+# 11. NOTIFICATIONS (optionnel, future expansion)
+################################################################################
+
+notifications:
+  # Email pour alertes (à configurer)
+  email:
+    enabled: false
+    smtp_server: ""
+    from_address: ""
+    recipients: []
+  
+  # Webhook (à configurer)
+  webhook:
+    enabled: false
+    url: ""
+
+################################################################################
+# 12. LISTES DE RÉFÉRENCE (pour information)
+################################################################################
+
+# RÉGIONS DE FRANCE (pour filtrage géographique)
+# À utiliser si include_all: false
+french_regions:
+  - "Auvergne-Rhône-Alpes"
+  - "Bourgogne-Franche-Comté"
+  - "Bretagne"
+  - "Centre-Val de Loire"
+  - "Champagne-Ardenne"
+  - "Corsica"
+  - "Côte d'Azur"
+  - "Grand Est"
+  - "Guadeloupe"
+  - "Guyane"
+  - "Hauts-de-France"
+  - "Île-de-France"
+  - "Languedoc-Roussillon"
+  - "Limousin"
+  - "Lorraine"
+  - "Martinique"
+  - "Mayotte"
+  - "Midi-Pyrénées"
+  - "Nord-Pas-de-Calais"
+  - "Normandie"
+  - "Nouvelle-Aquitaine"
+  - "Occitanie"
+  - "Pays de la Loire"
+  - "Picardie"
+  - "Poitou-Charentes"
+  - "Provence-Alpes-Côte d'Azur"
+  - "Réunion"
+
+################################################################################
+# FIN DE CONFIGURATION
+################################################################################
+
+# VERSION
+version: "1.0"
+last_updated: "2026-04-08"
+
+# NOTES
+notes: |
+  Cette configuration a été créée pour Unitee - Plateforme de veille automatisée
+  des marchés publics dans le secteur du bâtiment modulaire.
+  
+  Pour modifier les paramètres, lire config/PARAMETRES.md
+  
+  Tous les changements doivent être documentés en git avec message clair.

@@ -1,0 +1,238 @@
+@startuml MCD_Unitee
+' MCD - Modèle Conceptuel de Données
+' Projet : UNITEE - Veille Automatisée Marchés Publics
+' Date : 8 avril 2026
+' 
+' Vue conceptuelle (entités et relations)
+' SANS détails SQL
+
+title MCD - UNITEE Veille Automatisée Marchés Publics
+note bottom : Modèle Conceptuel - Vision métier pure
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' 1. ENTITÉS MÉTIER PRINCIPALES
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+entity ANNONCE {
+  id_annonce
+  --
+  id_externe
+  titre
+  description
+  montant_estime
+  date_publication
+  date_limite_reponse
+  localisation
+  lien_source
+  statut
+  score_pertinence
+  timestamp_import
+}
+
+entity SOURCE {
+  id_source
+  --
+  nom_source
+  description
+  url_base
+  type_source
+}
+
+entity ACHETEUR {
+  id_acheteur
+  --
+  nom_acheteur
+  type_acheteur
+  region
+  contact_email
+}
+
+entity MOT_CLE {
+  id_mot_cle
+  --
+  mot_cle
+  categorie
+  pertinence
+}
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' 2. ENTITÉS DE QUALIFICATION & ANALYSE
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+entity QUALIFICATION_SCORE {
+  id_score
+  --
+  id_annonce
+  score_pertinence (0-100)
+  niveau_alerte (CRITIQUE/URGENT/NORMAL/IGNORE)
+  raison_score
+  date_calcul
+}
+
+entity NOTIFICATION {
+  id_notification
+  --
+  id_annonce
+  type_alerte
+  statut (NEW/SENT/ARCHIVED)
+  date_creation
+  date_envoi
+}
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' 3. ENTITÉS TECHNIQUES (LOGS & AUDIT)
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+entity LOG_TECHNIQUE {
+  id_log_tech
+  --
+  timestamp
+  type_operation
+  source_operation
+  status (OK/ERREUR)
+  message_erreur
+  details_json
+}
+
+entity LOG_METIER {
+  id_log_metier
+  --
+  id_annonce
+  timestamp
+  type_operation (CREEE/MODIFIEE/SUPPRIMEE)
+  utilisateur
+  description
+}
+
+entity HISTORIQUE_ANNONCE {
+  id_historique
+  --
+  id_annonce
+  timestamp
+  ancien_state (JSON)
+  nouveau_state (JSON)
+  type_modification
+}
+
+entity LOG_SAUVEGARDE {
+  id_log_sauvegarde
+  --
+  timestamp
+  type_backup (FULL/INCREMENTAL)
+  fichier
+  status (OK/ERREUR)
+  nb_bytes
+  duree_secondes
+  message_erreur
+}
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' 4. ENTITÉ DE LIAISON N:N
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+entity ANNONCE_MOT_CLE {
+  id_annonce
+  id_mot_cle
+  --
+  pertinence_pour_annonce
+}
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' 5. RELATIONS
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+' Relation ANNONCE <-> SOURCE (N:1)
+SOURCE ||--o{ ANNONCE : publie
+
+' Relation ANNONCE <-> ACHETEUR (N:1)
+ACHETEUR ||--o{ ANNONCE : emet
+
+' Relation ANNONCE <-> MOT_CLE (N:N via ANNONCE_MOT_CLE)
+ANNONCE }o--|| ANNONCE_MOT_CLE : contient
+MOT_CLE ||--o{ ANNONCE_MOT_CLE : classe
+
+' Relation ANNONCE <-> QUALIFICATION_SCORE (1:N)
+ANNONCE ||--o{ QUALIFICATION_SCORE : a_pour_score
+
+' Relation ANNONCE <-> NOTIFICATION (1:N)
+ANNONCE ||--o{ NOTIFICATION : genere
+
+' Relation ANNONCE <-> LOG_METIER (1:N)
+ANNONCE ||--o{ LOG_METIER : logge
+
+' Relation ANNONCE <-> HISTORIQUE_ANNONCE (1:N)
+ANNONCE ||--o{ HISTORIQUE_ANNONCE : a_historique
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' 6. CONTRAINTES & NOTES MÉTIER
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+note right of ANNONCE
+  **Clé composite unique** :
+  (source_id, id_externe)
+  → Détecte doublons
+  
+  **Statut** :
+  NEW | QUALIFIED | IGNORED | RESPONDED
+end note
+
+note right of QUALIFICATION_SCORE
+  Score calculé via
+  fonction SQL complexe
+  basée sur :
+  - Keywords détectés
+  - Montant
+  - Deadline
+  - Historique acheteur
+end note
+
+note right of MOT_CLE
+  Extraits automatiquement
+  via TF-IDF ou regex
+  depuis titre + description
+  
+  Categories :
+  PRIMARY | SECONDARY | EXTRACTED
+end note
+
+note right of NOTIFICATION
+  Créée si score > 75
+  ou deadline < 7 jours
+  
+  Permet alertes métier
+  (email, webhook, etc.)
+end note
+
+note right of LOG_TECHNIQUE
+  Erreurs API
+  Timeouts
+  Problèmes intégration
+  
+  Crucial pour monitoring
+  et troubleshooting
+end note
+
+note right of HISTORIQUE_ANNONCE
+  Audit complet
+  Avant/Après états
+  Permet traçabilité métier
+  et forensics
+end note
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' 7. STATISTIQUES DU MODÈLE
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+note bottom
+  **Statistiques Modèle** :
+  - 7 entités métier/analyse
+  - 4 entités techniques (logs)
+  - 1 entité liaison (N:N)
+  - 8 relations principales
+  - 1 clé composite métier
+  
+  **Normalisation** : 3FN
+  **Type données** : Temps réel + analytique
+end note
+
+@enduml

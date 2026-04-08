@@ -1,0 +1,226 @@
+================================================================================
+                    SQLUNITEE PROJECT - CODEBASE STRUCTURE ANALYSIS
+================================================================================
+
+PROJECT NAME: sqlUnitee
+DESCRIPTION: Automated Surveillance Platform for Public Markets (Modular Building)
+GIT REPOSITORY: https://github.com/Emanrhesus-positif/sqlUnitee.git
+PROJECT DATE: April 8, 2026
+TEAM SIZE: 3 people
+ESTIMATED DURATION: 6 days
+
+================================================================================
+1. DIRECTORY STRUCTURE
+================================================================================
+
+sqlUnitee/
+├── .git/                      [Git repository metadata]
+├── .gitignore                 [Empty - no ignore rules defined yet]
+├── README.md                  [15 bytes - Project title only]
+├── PlanAction.md              [9.4 KB - Detailed action plan]
+├── ÉTUDE DE CAS.md            [26 KB - Case study documentation]
+└── Unitee.ipynb               [243 bytes - Jupyter notebook (empty)]
+
+Total project size: ~164 KB (mostly documentation)
+
+================================================================================
+2. EXISTING FILES & CONTENT OVERVIEW
+================================================================================
+
+A. README.md (15 bytes)
+   - Currently contains only project title: "# sqlUnitee"
+   - Needs expansion with project description, setup instructions, etc.
+
+B. PlanAction.md (9.4 KB, 254 lines)
+   - COMPREHENSIVE ACTION PLAN
+   - Detailed task division for 3 team members (2-3 days each)
+   
+   PERSON 1 - MODELING & ARCHITECTURE (2-3 days):
+     • Design normalized relational schema (3NF minimum)
+     • Create DDL scripts (01_create_tables.sql, 02_create_indexes.sql, etc.)
+     • Document design choices
+     • Create ER diagram
+     
+     Entities to model:
+     - annonces (public markets)
+     - sources (portals: BOAMP, TED, etc.)
+     - acheteurs (issuing organizations)
+     - mots_cles (automatic extraction)
+     - annonce_mot_cle (N:N relationship)
+     - qualification_scores (calculation results)
+     
+     Support tables:
+     - log_technique (API errors, imports)
+     - log_metier (qualification, modifications)
+     - notifications (alerts)
+     - log_sauvegardes (backup tracking)
+     - historique_annonces (audit trail)
+   
+   PERSON 2 - BUSINESS LOGIC (3-4 days):
+     • Implement 2-3 SQL Functions:
+       - CalculerScorePertinence() - relevance scoring (0-100)
+       - CategoriserNiveauAlerte() - alert level categorization
+       - NormaliserLocalisationAnnonce() - location standardization
+     
+     • Implement 4+ Stored Procedures:
+       - InsererOuMettAJourAnnonce() - Insert/update announcements
+       - TraiterLotAnnonces() - Batch announcement processing
+       - GenererDonneesDashboard() - Dashboard data generation
+       - PurgerDonneeAncienne() - Old data cleanup
+     
+     • Implement 3-4 Triggers:
+       - BEFORE INSERT ON annonces (validation)
+       - AFTER INSERT ON annonces (logging, scoring, notifications)
+       - AFTER UPDATE ON annonces (history tracking)
+       - BEFORE DELETE ON annonces (archiving)
+     
+     • Transaction management tests
+   
+   PERSON 3 - EXPLOITATION & BACKUP (2-3 days):
+     • Backup strategy implementation
+       - Daily backups at 22:00
+       - Weekly backups on Sunday at 02:00
+       - 30-day retention
+     • Restore procedures
+     • Dashboard queries and views
+     • Exploitation documentation
+
+C. ÉTUDE DE CAS.md (26 KB, 372 lines)
+   - DETAILED CASE STUDY DOCUMENT
+   - Business context and requirements
+   - Functional and non-functional specifications
+   - Data dictionary
+   - Business rules and constraints
+   - Integration requirements
+   - Security and compliance requirements
+   (File encoding: UTF-8, cannot read full content due to terminal encoding)
+
+D. Unitee.ipynb (243 bytes)
+   - Jupyter notebook file
+   - Currently empty (created but not populated)
+   - Could be used for data analysis, testing, or demonstrations
+
+================================================================================
+3. GIT REPOSITORY STATUS
+================================================================================
+
+Current Branch: main
+Last Commits:
+  - 1b0d051: "plan d'action update" (April 8, 2026)
+  - 9b077b6: "Initial commit"
+
+Remote: origin (https://github.com/Emanrhesus-positif/sqlUnitee.git)
+Git User: Emanrhesus-positif (emanrhesus.positif@gmail.com)
+Status: Clean (no uncommitted changes)
+Tracking: Untracked file (Unitee.ipynb)
+
+================================================================================
+4. DATA FILES & EXAMPLES
+================================================================================
+
+Currently: NONE
+Expected to be created:
+- SQL data import files
+- Sample CSV files for testing
+- JSON configuration files
+- SQL test data scripts
+- Backup files
+
+================================================================================
+5. CONFIGURATION & REQUIREMENTS FILES
+================================================================================
+
+Currently: NONE
+Expected to be created:
+- requirements.txt or dependencies file
+- Database connection configuration
+- .env file for environment variables
+- Docker configuration (optional)
+
+================================================================================
+6. DOCUMENTATION
+================================================================================
+
+✓ PlanAction.md - Project action plan and task distribution (COMPLETE)
+✓ ÉTUDE DE CAS.md - Case study and requirements (COMPLETE)
+✓ README.md - Project overview (MINIMAL - needs expansion)
+
+Missing documentation to be created:
+- schema.md (database schema description)
+- LOGIC.md (business logic documentation)
+- EXPLOITATION.md (operational guide)
+- INSTALLATION.md (setup instructions)
+- API_DOCUMENTATION.md (if applicable)
+
+================================================================================
+7. EXISTING SCRIPTS & CODE
+================================================================================
+
+Currently: NONE
+Expected SQL scripts (by Person 1):
+- 01_create_tables.sql
+- 02_create_indexes.sql
+- 03_alter_constraints.sql
+
+Expected SQL scripts (by Person 2):
+- 04_functions.sql
+- 05_procedures.sql
+- 06_triggers.sql
+- 07_transactions_tests.sql
+
+Expected SQL scripts (by Person 3):
+- 08_create_backup_log.sql
+- 09_restore_procedure.sql
+- backup.sh / backup.bat
+
+Expected Python/Jupyter scripts:
+- Data import/export scripts
+- Testing and validation scripts
+
+================================================================================
+8. DEPENDENCIES & REQUIREMENTS
+================================================================================
+
+Implicit requirements based on documentation:
+- MySQL database (8.0 or later recommended)
+- Bash/PowerShell for backup scripts
+- Optional: Jupyter Notebook for analysis
+- Optional: Git for version control (already set up)
+- Optional: Docker for containerization
+
+No explicit requirements.txt or package manifest currently present.
+
+================================================================================
+9. PROJECT READINESS ASSESSMENT
+================================================================================
+
+✓ COMPLETE:
+  - Project planning and action plan
+  - Case study and requirements documentation
+  - Git repository setup
+  - Team organization (3 distinct roles with clear responsibilities)
+
+⚠ IN PROGRESS:
+  - Code and SQL scripts
+  - Data models and schema
+  - Business logic implementation
+  - Testing framework
+
+✗ NOT STARTED:
+  - Database tables and schema
+  - SQL functions and procedures
+  - Triggers and automation
+  - Backup/restore mechanisms
+  - Dashboard implementation
+  - Operational documentation
+  - Sample data and test cases
+
+================================================================================
+10. RECOMMENDATIONS FOR NEXT STEPS
+================================================================================
+
+1. IMMEDIATE ACTIONS:
+   - Expand README.md with:
+     * Project description
+     * Quick start guide
+     * Architecture overview
